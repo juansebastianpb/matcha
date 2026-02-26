@@ -10,12 +10,12 @@ import { useGameStore } from '../../stores/gameStore'
 
 // Map engine color names to tile texture indices
 const COLOR_TO_INDEX: Record<string, number> = {
-  red: 0,
-  green: 3,
-  blue: 1,
-  violet: 4,
-  yellow: 0,
-  navy: 5,
+  red: 0,      // Yellow happy face
+  blue: 1,     // Blue sleepy face
+  green: 3,    // Green cheeky face
+  violet: 4,   // Purple dreamy face
+  yellow: 5,   // Orange excited face
+  navy: 2,     // Pink surprised face
 }
 
 export class GameScene extends Phaser.Scene {
