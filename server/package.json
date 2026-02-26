@@ -1,0 +1,17 @@
+{
+  "name": "matcha-server",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch index.ts",
+    "setup": "tsx setup.ts"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "@types/express": "^4.17.21"
+  }
+}
