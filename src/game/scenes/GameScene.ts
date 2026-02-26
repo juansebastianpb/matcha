@@ -55,7 +55,7 @@ export class GameScene extends Phaser.Scene {
       scoringSystem: 'puzzleLeague',
     })
 
-    // Listen for effects
+    // Listen for engine effects
     this.engine.on('chainMatchMade', (effect) => {
       const chainNum = effect.chainNumber ?? 0
       if (chainNum > 1) {
@@ -75,20 +75,24 @@ export class GameScene extends Phaser.Scene {
       }
     })
 
+    // Game over: blocks reached the top
     this.engine.on('gameOver', () => {
-      // Top-out: penalty + screen shake
-      this.cameras.main.shake(200, 0.01)
+      this.cameras.main.shake(300, 0.015)
+      this.endGame()
     })
 
-    // Draw background
+    // Cursor moves up when a row is added
+    this.engine.on('addRow', () => {
+      if (this.cursorY > 0) this.cursorY--
+    })
+
     this.drawBackground()
     this.drawGridBackground()
 
-    // Create sprite arrays
+    // Create sprite pool
     this.sprites = new Array(GRID_ROWS * GRID_COLS).fill(null)
     this.previewSprites = []
 
-    // Create preview row sprites
     for (let x = 0; x < GRID_COLS; x++) {
       const sprite = this.add.sprite(
         GRID_OFFSET_X + x * CELL_SIZE + BLOCK_SIZE / 2,
@@ -101,14 +105,13 @@ export class GameScene extends Phaser.Scene {
       this.previewSprites.push(sprite)
     }
 
-    // Create cursor
     this.cursorGraphics = this.add.graphics()
     this.cursorGraphics.setDepth(5)
 
-    // Input
+    // Input: pointer
     this.input.on('pointerdown', this.handlePointer, this)
 
-    // Keyboard
+    // Input: keyboard (same as original panel-league keybindings)
     this.input.keyboard?.on('keydown-LEFT', () => {
       if (this.cursorX > 0) this.cursorX--
     })
@@ -125,11 +128,11 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-X', () => this.doSwap())
     this.input.keyboard?.on('keydown-Z', () => this.doAddRow())
 
-    // Initial render
-    const state = this.engine.currentState
+    // Initial render — use engine.step() directly like the original source does
+    // (do NOT use engine.currentState which double-steps)
+    const state = this.engine.step()
     this.renderState(state)
 
-    // Reset store
     const store = useGameStore.getState()
     store.reset()
     store.setPlaying(true)
@@ -138,27 +141,25 @@ export class GameScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     if (this.isGameOver) return
 
-    // Game timer (real seconds)
+    // Real-time countdown
     this.gameTimer += delta / 1000
     const timeLeft = Math.max(0, ROUND_DURATION - this.gameTimer)
 
-    // Speed up rise as time runs out
-    if (timeLeft < 30) {
-      this.riseSpeedMultiplier = 1.5
-    }
-    if (timeLeft < 15) {
-      this.riseSpeedMultiplier = 2
-    }
+    // Speed up rising blocks as time runs out
+    if (timeLeft < 30) this.riseSpeedMultiplier = 1.5
+    if (timeLeft < 15) this.riseSpeedMultiplier = 2
 
-    // Engine ticks at ENGINE_FPS
+    // Fixed timestep engine tick
     this.engineAccum += delta
     const msPerTick = 1000 / ENGINE_FPS
-    let stepped = false
+    let lastState: GameState | null = null
 
     while (this.engineAccum >= msPerTick) {
       this.engineAccum -= msPerTick
 
-      // Auto-rise
+      if (this.isGameOver) break
+
+      // Auto-rise: add a row every N engine ticks
       this.autoRiseCounter++
       const riseInterval = Math.floor(AUTO_RISE_INTERVAL / this.riseSpeedMultiplier)
       if (this.autoRiseCounter >= riseInterval) {
@@ -169,26 +170,22 @@ export class GameScene extends Phaser.Scene {
         })
       }
 
-      // Step engine
-      this.engine.step()
-      stepped = true
+      // Step engine — returns state directly (same pattern as original source sandbox)
+      lastState = this.engine.step()
     }
 
-    if (stepped) {
-      const state = this.engine.currentState
-      this.renderState(state)
+    if (lastState) {
+      this.renderState(lastState)
 
-      // Sync to store
       const store = useGameStore.getState()
-      store.setScore(state.score)
+      store.setScore(lastState.score)
       store.setTime(timeLeft)
     }
 
-    // Draw cursor
     this.drawCursor()
 
     // Time's up
-    if (timeLeft <= 0) {
+    if (timeLeft <= 0 && !this.isGameOver) {
       this.endGame()
     }
   }
@@ -200,18 +197,13 @@ export class GameScene extends Phaser.Scene {
     const row = Math.floor((pointer.y - GRID_OFFSET_Y) / CELL_SIZE)
 
     if (row < 0 || row >= GRID_ROWS || col < 0 || col >= GRID_COLS) {
-      // Tapped below grid = manual rise
-      if (row >= GRID_ROWS) {
-        this.doAddRow()
-      }
+      if (row >= GRID_ROWS) this.doAddRow()
       return
     }
 
-    // Tap-to-select, tap-to-swap mechanic
     const tappedIndex = col + row * GRID_COLS
 
     if (this.selectedIndex === null) {
-      // First tap: select
       this.selectedIndex = tappedIndex
       this.cursorX = col
       this.cursorY = row
@@ -219,25 +211,21 @@ export class GameScene extends Phaser.Scene {
       const selCol = this.selectedIndex % GRID_COLS
       const selRow = Math.floor(this.selectedIndex / GRID_COLS)
 
-      // Same block: deselect
       if (tappedIndex === this.selectedIndex) {
         this.selectedIndex = null
         return
       }
 
-      // Adjacent horizontally on the same row
+      // Adjacent horizontal swap
       if (selRow === row && Math.abs(selCol - col) === 1) {
-        // Swap at the left index
         const swapCol = Math.min(selCol, col)
-        const swapIndex = swapCol + selRow * GRID_COLS
         this.engine.addEvent({
           time: this.engine.time,
           type: 'swap',
-          index: swapIndex,
+          index: swapCol + selRow * GRID_COLS,
         })
         this.selectedIndex = null
       } else {
-        // Not adjacent: reselect
         this.selectedIndex = tappedIndex
         this.cursorX = col
         this.cursorY = row
@@ -247,11 +235,10 @@ export class GameScene extends Phaser.Scene {
 
   private doSwap(): void {
     if (this.isGameOver) return
-    const index = this.cursorX + this.cursorY * GRID_COLS
     this.engine.addEvent({
       time: this.engine.time,
       type: 'swap',
-      index,
+      index: this.cursorX + this.cursorY * GRID_COLS,
     })
     this.selectedIndex = null
   }
@@ -266,9 +253,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private renderState(state: GameState): void {
-    const blocks = state.blocks
-
-    blocks.forEach((block, i) => {
+    state.blocks.forEach((block, i) => {
       const col = i % state.width
       const row = Math.floor(i / state.width)
       const x = GRID_OFFSET_X + col * CELL_SIZE + BLOCK_SIZE / 2
@@ -288,47 +273,38 @@ export class GameScene extends Phaser.Scene {
         sprite.setTexture(`tile_${textureIndex}`)
         sprite.setVisible(true)
 
-        // Smooth position with swap animation
+        // Swap slide animation (from original panel-league block.js)
         let targetX = x
         if (block.swapTimer !== 0) {
           const swapRatio = block.swapTimer / state.swapTime
           targetX = x - swapRatio * CELL_SIZE
         }
 
-        // Lerp position for smooth movement
         sprite.x += (targetX - sprite.x) * 0.4
         sprite.y += (y - sprite.y) * 0.4
 
-        // Flash animation
+        // Flashing (from original: block has flashTimer >= 0 when matched)
         if (block.flashTimer >= 0) {
           sprite.setAlpha(block.flashTimer % 2 === 0 ? 0.3 : 1)
           sprite.setScale(1.1)
         } else {
           sprite.setAlpha(1)
-
-          // Landing bounce
-          if (block.floatTimer === -1 && Math.abs(sprite.y - y) > 2) {
-            sprite.setScale(1)
-          } else {
-            // Reset scale smoothly
-            const s = sprite.scaleX
-            sprite.setScale(s + (1 - s) * 0.3)
-          }
+          const s = sprite.scaleX
+          sprite.setScale(s + (1 - s) * 0.3)
         }
 
-        // Floating/falling: slight transparency
+        // Floating/falling transparency
         if (block.floatTimer >= 0) {
           sprite.setAlpha(0.85)
         }
       } else {
-        // No block or garbage block
         if (this.sprites[i]) {
           this.sprites[i]!.setVisible(false)
         }
       }
     })
 
-    // Render preview row
+    // Preview row (next row coming from bottom)
     if (state.nextRow) {
       state.nextRow.forEach((block, i) => {
         if (block.color) {
@@ -344,14 +320,13 @@ export class GameScene extends Phaser.Scene {
 
   private drawCursor(): void {
     this.cursorGraphics.clear()
+    if (this.isGameOver) return
 
-    // Swap cursor: highlights two adjacent blocks
     const x = GRID_OFFSET_X + this.cursorX * CELL_SIZE
     const y = GRID_OFFSET_Y + this.cursorY * CELL_SIZE
-
     const alpha = 0.6 + Math.sin(this.time.now / 200) * 0.3
 
-    // Draw cursor spanning two blocks
+    // Swap cursor: two-wide highlight (same as original panel-league swapper)
     this.cursorGraphics.lineStyle(3, 0xffffff, alpha)
     this.cursorGraphics.strokeRoundedRect(
       x - 2, y - 2,
@@ -359,15 +334,16 @@ export class GameScene extends Phaser.Scene {
       6
     )
 
-    // If a single block is selected (tap mode), highlight it
+    // Selection highlight for tap-to-swap
     if (this.selectedIndex !== null) {
       const selCol = this.selectedIndex % GRID_COLS
       const selRow = Math.floor(this.selectedIndex / GRID_COLS)
-      const sx = GRID_OFFSET_X + selCol * CELL_SIZE
-      const sy = GRID_OFFSET_Y + selRow * CELL_SIZE
-
       this.cursorGraphics.lineStyle(3, 0x55efc4, alpha)
-      this.cursorGraphics.strokeRoundedRect(sx - 1, sy - 1, BLOCK_SIZE + 2, BLOCK_SIZE + 2, 4)
+      this.cursorGraphics.strokeRoundedRect(
+        GRID_OFFSET_X + selCol * CELL_SIZE - 1,
+        GRID_OFFSET_Y + selRow * CELL_SIZE - 1,
+        BLOCK_SIZE + 2, BLOCK_SIZE + 2, 4
+      )
     }
   }
 
@@ -381,7 +357,6 @@ export class GameScene extends Phaser.Scene {
     })
     popup.setOrigin(0.5)
     popup.setDepth(20)
-
     this.tweens.add({
       targets: popup,
       y: y - 40,
@@ -394,18 +369,21 @@ export class GameScene extends Phaser.Scene {
   }
 
   private endGame(): void {
+    if (this.isGameOver) return
     this.isGameOver = true
 
-    const state = this.engine.currentState
+    // Get final state from the last cached state (no double-step)
+    const stateJSON = this.engine.lastValidState
+    const state: GameState = stateJSON ? JSON.parse(stateJSON) : { score: 0 }
+
     const store = useGameStore.getState()
     store.setPlaying(false)
     store.setGameOver(true)
     store.setFinalScore(state.score)
-
-    // Count cleared blocks (rough estimate from score)
     store.setBlocksCleared(Math.floor(state.score / 10))
 
     this.input.off('pointerdown', this.handlePointer, this)
+    this.cursorGraphics.clear()
   }
 
   private drawBackground(): void {

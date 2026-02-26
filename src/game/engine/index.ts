@@ -92,6 +92,13 @@ export class GameEngine {
     return state
   }
 
+  get lastValidState(): string | null {
+    if (this.lastValidTime === null) {
+      return this.initialStateJSON
+    }
+    return this.statesByTime.get(this.lastValidTime) ?? null
+  }
+
   invalidateCache(): void {
     this.lastValidTime = null
     this.statesByTime = new Map()
