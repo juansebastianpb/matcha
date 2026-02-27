@@ -4,15 +4,15 @@ export const GRID_ROWS = 12
 export const INITIAL_ROWS = 6
 
 // Rendering
-export const BLOCK_SIZE = 48
-export const BLOCK_GAP = 2
+export const BLOCK_SIZE = 88
+export const BLOCK_GAP = 4
 export const CELL_SIZE = BLOCK_SIZE + BLOCK_GAP
 
 export const GRID_WIDTH = GRID_COLS * CELL_SIZE
 export const GRID_HEIGHT = GRID_ROWS * CELL_SIZE
 
-export const GRID_OFFSET_X = 16
-export const GRID_OFFSET_Y = 16
+export const GRID_OFFSET_X = 28
+export const GRID_OFFSET_Y = 28
 
 export const GAME_WIDTH = GRID_WIDTH + GRID_OFFSET_X * 2
 export const GAME_HEIGHT = GRID_HEIGHT + GRID_OFFSET_Y * 2

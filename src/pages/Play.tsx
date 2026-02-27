@@ -1,14 +1,24 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { PhaserGame } from '../game/PhaserGame'
 import { ScoreDisplay } from '../components/game-ui/ScoreDisplay'
-import { TimerDisplay } from '../components/game-ui/TimerDisplay'
+import { stopMusic } from '../game/audio/SoundManager'
+
+import { CelebrationOverlay } from '../components/game-ui/CelebrationOverlay'
 import { ChainIndicator } from '../components/game-ui/ChainIndicator'
 import { GameOverOverlay } from '../components/game-ui/GameOverOverlay'
+import { CountdownOverlay } from '../components/game-ui/CountdownOverlay'
+import { HypeOverlay } from '../components/game-ui/HypeOverlay'
+import { SideDecorations } from '../components/game-ui/SideDecorations'
 import { useGameStore } from '../stores/gameStore'
 
 export function Play() {
   const [gameKey, setGameKey] = useState(0)
   const isPlaying = useGameStore((s) => s.isPlaying)
+
+  // Stop music immediately when leaving the page (browser back, route change, etc.)
+  useEffect(() => {
+    return () => stopMusic()
+  }, [])
 
   const handlePlayAgain = useCallback(() => {
     useGameStore.getState().reset()
@@ -16,25 +26,35 @@ export function Play() {
   }, [])
 
   return (
-    <div className="py-8 px-4">
-      <div className="max-w-lg mx-auto">
-        {/* Score + Timer bar */}
-        <div className="flex justify-between items-start mb-4 px-2">
+    <div className="h-full relative overflow-hidden">
+      {/* Side face decorations — full viewport layer behind game */}
+      <div className="absolute inset-0 pointer-events-none z-0">
+        <SideDecorations />
+      </div>
+
+      {/* Full-screen celebration effects */}
+      <CelebrationOverlay />
+
+      {/* Main game content */}
+      <div className="h-full flex flex-col items-center px-4 py-2 relative z-10">
+        {/* Score bar */}
+        <div className="flex justify-center items-center w-full max-w-2xl px-2 shrink-0">
           <ScoreDisplay />
-          <TimerDisplay />
         </div>
 
-        {/* Game container */}
-        <div className="relative">
+        {/* Game container — fills remaining height */}
+        <div className="relative flex-1 min-h-0 w-full max-w-2xl mt-1 overflow-visible">
           <PhaserGame key={gameKey} onRestart={handlePlayAgain} />
           <ChainIndicator />
+          <CountdownOverlay />
+          <HypeOverlay />
           <GameOverOverlay onPlayAgain={handlePlayAgain} />
         </div>
 
         {/* Controls hint */}
         {isPlaying && (
-          <div className="text-center mt-4 text-white/30 text-sm">
-            Tap a block to select, then tap an adjacent block to swap
+          <div className="text-center py-1 text-white/30 text-xs shrink-0">
+            Tap to move cursor, tap cursor to swap
           </div>
         )}
       </div>

@@ -10,15 +10,19 @@ export function createGameConfig(parent: string): Phaser.Types.Core.GameConfig {
     width: GAME_WIDTH,
     height: GAME_HEIGHT,
     parent,
-    backgroundColor: '#1a1a2e',
+    transparent: true,
     scene: [BootScene, GameScene, GameOverScene],
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
+    fps: {
+      target: 60,
+    },
     render: {
       pixelArt: false,
       antialias: true,
+      roundPixels: true,
     },
   }
 }

@@ -15,7 +15,7 @@ export function Button({
   const base = 'font-bold rounded-xl transition-all duration-200 cursor-pointer'
 
   const variants = {
-    primary: 'bg-green-400 hover:bg-green-300 text-gray-900 shadow-lg hover:shadow-xl hover:-translate-y-0.5',
+    primary: 'bg-pink-300 hover:bg-pink-200 text-gray-900 shadow-lg hover:shadow-xl hover:-translate-y-0.5',
     secondary: 'bg-white/10 hover:bg-white/20 text-white border border-white/20',
     ghost: 'text-white/70 hover:text-white hover:bg-white/5',
   }

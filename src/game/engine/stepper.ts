@@ -69,6 +69,27 @@ export class ScoringStepper {
       }
     }
 
+    // Ensure no pre-existing matches on the starting grid.
+    // addRow's clearMatches(true) removes preventMatching flags, so
+    // the first engine step would find and trigger those matches.
+    const fixRNG = JKISS31.unserialize(state.RNG)
+    for (let pass = 0; pass < 50; pass++) {
+      state.dirty = true
+      const hasMatch = basic.findMatches(state, state.blocks)
+      if (!hasMatch) {
+        basic.clearMatches(state.blocks, true)
+        break
+      }
+      // Re-color every matched block before clearing flags
+      for (const block of state.blocks) {
+        if (block.matching) {
+          block.color = state.blockTypes[fixRNG.step() % state.blockTypes.length]
+        }
+      }
+      basic.clearMatches(state.blocks, true)
+    }
+    state.RNG = fixRNG.serialize()
+
     return state
   }
 
