@@ -95,3 +95,14 @@ export const CHARACTERS: Character[] = [
     highlight: 0xfcfaf7,
   },
 ]
+
+// ── Garbage block (not a playable tile) ─────────────────────
+
+export const GARBAGE_BLOCK = {
+  name: 'Garbage',
+  color: '#9ba4b5',
+  fill: 0x9ba4b5,
+  border: 0x7d879a,
+  highlight: 0xc5cdd8,
+  eyeColor: 0x2d3436,
+}

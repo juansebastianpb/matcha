@@ -4,7 +4,7 @@ import { Footer } from './Footer'
 
 export function Layout() {
   const { pathname } = useLocation()
-  const isPlay = pathname === '/play'
+  const isPlay = pathname === '/play' || pathname === '/vs' || pathname === '/lobby'
 
   return (
     <div className="h-dvh flex flex-col bg-[#1a1b2e] text-white overflow-hidden">

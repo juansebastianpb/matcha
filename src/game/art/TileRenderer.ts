@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { TILE_PALETTES } from './colors'
 import { BLOCK_SIZE, BLOCK_TYPE_COUNT } from '../constants'
+import { GARBAGE_BLOCK } from '../../characters'
 import type { Expression } from '../../characters'
 
 const EXPRESSIONS: Expression[] = [
@@ -84,6 +85,104 @@ export function generateTileTextures(scene: Phaser.Scene): void {
     g.strokeCircle(8, 8, 7)
     g.generateTexture('particle_ring', 16, 16)
     g.destroy()
+  }
+
+  // Kawaii sparkle shapes (64×64, white, used for board ambient sparkles)
+  const kawaiiSize = 64
+  const kc = kawaiiSize / 2
+
+  // Smooth circle (high-res replacement for particle_white in sparkles)
+  {
+    const g = scene.add.graphics()
+    g.fillStyle(0xffffff)
+    g.fillCircle(kc, kc, 26)
+    g.generateTexture('kawaii_circle', kawaiiSize, kawaiiSize)
+    g.destroy()
+    scene.textures.get('kawaii_circle').setFilter(Phaser.Textures.FilterMode.LINEAR)
+  }
+
+  // Heart
+  {
+    const g = scene.add.graphics()
+    g.fillStyle(0xffffff)
+    const hs = 20
+    g.fillCircle(kc - hs * 0.45, kc - hs * 0.25, hs * 0.55)
+    g.fillCircle(kc + hs * 0.45, kc - hs * 0.25, hs * 0.55)
+    g.fillTriangle(
+      kc - hs, kc + hs * 0.05,
+      kc + hs, kc + hs * 0.05,
+      kc, kc + hs * 0.85,
+    )
+    g.generateTexture('kawaii_heart', kawaiiSize, kawaiiSize)
+    g.destroy()
+    scene.textures.get('kawaii_heart').setFilter(Phaser.Textures.FilterMode.LINEAR)
+  }
+
+  // 4-pointed twinkle star
+  {
+    const g = scene.add.graphics()
+    g.fillStyle(0xffffff)
+    const outerR = 28, innerR = 8
+    g.beginPath()
+    for (let i = 0; i < 8; i++) {
+      const angle = (i * Math.PI) / 4 - Math.PI / 2
+      const r = i % 2 === 0 ? outerR : innerR
+      const sx = kc + Math.cos(angle) * r
+      const sy = kc + Math.sin(angle) * r
+      if (i === 0) g.moveTo(sx, sy)
+      else g.lineTo(sx, sy)
+    }
+    g.closePath()
+    g.fillPath()
+    g.generateTexture('kawaii_star', kawaiiSize, kawaiiSize)
+    g.destroy()
+    scene.textures.get('kawaii_star').setFilter(Phaser.Textures.FilterMode.LINEAR)
+  }
+
+  // 5-petal flower
+  {
+    const g = scene.add.graphics()
+    g.fillStyle(0xffffff)
+    const petalR = 11, dist = 13
+    for (let i = 0; i < 5; i++) {
+      const angle = (i * Math.PI * 2) / 5 - Math.PI / 2
+      g.fillCircle(kc + Math.cos(angle) * dist, kc + Math.sin(angle) * dist, petalR)
+    }
+    g.fillStyle(0xffffff, 0.9)
+    g.fillCircle(kc, kc, 8)
+    g.generateTexture('kawaii_flower', kawaiiSize, kawaiiSize)
+    g.destroy()
+    scene.textures.get('kawaii_flower').setFilter(Phaser.Textures.FilterMode.LINEAR)
+  }
+
+  // Diamond
+  {
+    const g = scene.add.graphics()
+    g.fillStyle(0xffffff)
+    const dr = 24
+    g.beginPath()
+    g.moveTo(kc, kc - dr)
+    g.lineTo(kc + dr * 0.6, kc)
+    g.lineTo(kc, kc + dr)
+    g.lineTo(kc - dr * 0.6, kc)
+    g.closePath()
+    g.fillPath()
+    g.generateTexture('kawaii_diamond', kawaiiSize, kawaiiSize)
+    g.destroy()
+    scene.textures.get('kawaii_diamond').setFilter(Phaser.Textures.FilterMode.LINEAR)
+  }
+
+  // Musical note
+  {
+    const g = scene.add.graphics()
+    g.fillStyle(0xffffff)
+    g.fillCircle(20, 44, 12)
+    g.fillRect(30, 8, 6, 38)
+    g.fillStyle(0xffffff, 0.9)
+    g.fillTriangle(33, 8, 54, 16, 33, 24)
+    g.generateTexture('kawaii_note', kawaiiSize, kawaiiSize)
+    g.destroy()
+    scene.textures.get('kawaii_note').setFilter(Phaser.Textures.FilterMode.LINEAR)
   }
 }
 
@@ -1084,4 +1183,71 @@ function drawSpiral(g: Phaser.GameObjects.Graphics, cx: number, cy: number, size
     g.lineTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r)
   }
   g.strokePath()
+}
+
+// ── Garbage block textures ────────────────────────────────────
+
+export function generateGarbageTextures(scene: Phaser.Scene): void {
+  const { fill, border, highlight } = GARBAGE_BLOCK
+  const ink = 0x2d3436
+
+  // garbage_cell: cute round blob (same style as regular tiles)
+  // Uses TEX_SIZE/RENDER_SCALE from module scope
+  {
+    const g = scene.add.graphics()
+    const cx = TEX_SIZE / 2
+    const cy = TEX_SIZE / 2
+    const r = (BLOCK_SIZE / 2 - 2) * RENDER_SCALE
+
+    // Shadow
+    g.fillStyle(0x000000, 0.15)
+    g.fillCircle(cx + 1 * RENDER_SCALE, cy + 2 * RENDER_SCALE, r)
+
+    // Main circle
+    g.fillStyle(fill)
+    g.fillCircle(cx, cy, r)
+
+    // Border
+    g.lineStyle(2 * RENDER_SCALE, border, 1)
+    g.strokeCircle(cx, cy, r)
+
+    // Highlight
+    g.fillStyle(highlight, 0.6)
+    g.fillEllipse(cx - 2 * RENDER_SCALE, cy - 6 * RENDER_SCALE, r * 0.7, r * 0.4)
+
+    // Grumpy face — angry brow eyes + flat frown
+    // Left eye: dot
+    g.fillStyle(ink)
+    g.fillCircle(px(21), px(26), sz(4))
+    g.fillStyle(0xffffff)
+    g.fillCircle(px(22), px(24.5), sz(1.5))
+
+    // Right eye: dot
+    g.fillStyle(ink)
+    g.fillCircle(px(39), px(26), sz(4))
+    g.fillStyle(0xffffff)
+    g.fillCircle(px(40), px(24.5), sz(1.5))
+
+    // Angry brows — angled lines above eyes
+    g.lineStyle(2.4 * RENDER_SCALE, ink, 0.8)
+    // Left brow: low on inside, high on outside
+    g.beginPath()
+    g.moveTo(px(15), px(18))
+    g.lineTo(px(26), px(21))
+    g.strokePath()
+    // Right brow: high on outside, low on inside
+    g.beginPath()
+    g.moveTo(px(34), px(21))
+    g.lineTo(px(45), px(18))
+    g.strokePath()
+
+    // Frown
+    g.lineStyle(2.4 * RENDER_SCALE, ink, 1)
+    g.beginPath()
+    drawQuadBezier(g, px(22), px(40), px(30), px(36), px(38), px(40))
+    g.strokePath()
+
+    g.generateTexture('garbage_cell', TEX_SIZE, TEX_SIZE)
+    g.destroy()
+  }
 }

@@ -1,7 +1,11 @@
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 import { CHARACTERS } from '../characters'
 import { CharacterFace } from '../components/CharacterFace'
+import { CPU_RIVALS } from '../lib/cpuRivals'
+import { useMatchStore } from '../stores/matchStore'
+import type { AIDifficulty } from '../game/ai/PuzzleAI'
 import type { Expression } from '../characters'
 
 const HERO_BLOCKS: { size: number; color: string; opacity: number; delay: string; top?: string; left?: string; right?: string; bottom?: string }[] = [
@@ -42,6 +46,14 @@ const HERO_FACES: { charIdx: number; expression: Expression; size: number; opaci
 ]
 
 export function Landing() {
+  const [showModeSelect, setShowModeSelect] = useState(false)
+  const navigate = useNavigate()
+
+  const handleCpuMatch = (difficulty: AIDifficulty) => {
+    useMatchStore.getState().startCpuMatch(difficulty)
+    navigate('/vs')
+  }
+
   return (
     <div className="min-h-[calc(100vh-3.5rem)]">
       {/* Hero */}
@@ -87,11 +99,55 @@ export function Landing() {
           <p className="text-xl md:text-2xl text-white/60 mb-10 max-w-lg mx-auto">
             A kawaii block-swapping puzzle game. Match colors, build chains, and chase high scores!
           </p>
-          <div className="flex gap-4 justify-center">
-            <Link to="/play">
-              <Button size="lg">Play Now</Button>
-            </Link>
-          </div>
+          {!showModeSelect ? (
+            <div className="flex gap-4 justify-center">
+              <Button size="lg" onClick={() => setShowModeSelect(true)}>Single Player</Button>
+              <Link to="/lobby">
+                <Button size="lg" variant="secondary">Multiplayer</Button>
+              </Link>
+            </div>
+          ) : (
+            <div className="bg-white/[0.06] border border-white/[0.08] rounded-2xl backdrop-blur-sm p-5 max-w-xs w-full mx-auto">
+              <h2 className="text-xl font-black text-center mb-4">
+                <span className="bg-gradient-to-r from-pink-300 via-amber-200 to-yellow-200 bg-clip-text text-transparent">
+                  Single Player
+                </span>
+              </h2>
+
+              <Link to="/play">
+                <Button size="lg" className="w-full">Endless</Button>
+              </Link>
+
+              <div className="flex items-center gap-3 my-4">
+                <div className="flex-1 h-px bg-white/10" />
+                <span className="text-white/30 text-xs uppercase tracking-wider">VS CPU</span>
+                <div className="flex-1 h-px bg-white/10" />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                {(['easy', 'medium', 'hard'] as AIDifficulty[]).map((diff) => {
+                  const rival = CPU_RIVALS[diff]
+                  return (
+                    <button
+                      key={diff}
+                      onClick={() => handleCpuMatch(diff)}
+                      className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.15] hover:bg-white/[0.06] hover:border-white/[0.25] transition-colors cursor-pointer backdrop-blur-sm"
+                    >
+                      <CharacterFace character={CHARACTERS[rival.characterIndex]} expression="happy" size={34} />
+                      <span className="text-white/70 text-xs font-bold capitalize">{diff}</span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              <button
+                onClick={() => setShowModeSelect(false)}
+                className="w-full text-center text-white/30 text-sm mt-4 hover:text-white/50 transition-colors cursor-pointer"
+              >
+                Back
+              </button>
+            </div>
+          )}
         </div>
       </section>
 

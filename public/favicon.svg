@@ -1,8 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <circle cx="32" cy="32" r="28" fill="#55EFC4"/>
-  <circle cx="22" cy="26" r="4" fill="#2d3436"/>
-  <circle cx="42" cy="26" r="4" fill="#2d3436"/>
-  <circle cx="23" cy="25" r="1.5" fill="white"/>
-  <circle cx="43" cy="25" r="1.5" fill="white"/>
-  <path d="M 20 36 Q 32 48 44 36" stroke="#2d3436" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-4 -10 68 68">
+  <!-- Pip bear ears (behind) -->
+  <circle cx="12" cy="10" r="8" fill="#FFEAA7" />
+  <circle cx="12" cy="10" r="5" fill="#d9c78e" />
+  <circle cx="48" cy="10" r="8" fill="#FFEAA7" />
+  <circle cx="48" cy="10" r="5" fill="#d9c78e" />
+  <!-- Shadow -->
+  <circle cx="31" cy="32" r="26" fill="black" opacity="0.1" />
+  <!-- Body -->
+  <circle cx="30" cy="30" r="26" fill="#FFEAA7" />
+  <!-- Highlight -->
+  <ellipse cx="25" cy="20" rx="13" ry="7" fill="white" opacity="0.25" />
+  <!-- Eyes -->
+  <circle cx="21" cy="25" r="5" fill="#2d3436" />
+  <circle cx="39" cy="25" r="5" fill="#2d3436" />
+  <circle cx="22.5" cy="23.5" r="2" fill="white" />
+  <circle cx="40.5" cy="23.5" r="2" fill="white" />
+  <!-- Smile -->
+  <path d="M22,37 Q30,46 38,37" stroke="#2d3436" stroke-width="3" fill="none" stroke-linecap="round" />
+  <!-- Blush -->
+  <circle cx="14" cy="35" r="5" fill="#ffb8b8" opacity="0.35" />
+  <circle cx="46" cy="35" r="5" fill="#ffb8b8" opacity="0.35" />
 </svg>

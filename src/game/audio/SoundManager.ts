@@ -71,6 +71,7 @@ export function initAudio(): void {
   createPool('/audio/bubble.wav', 1, 0.7)
   createPool('/audio/trailer.mp3', 1, 0.9)
   createPool('/audio/boom.mp3', 1, 1.0)
+  createPool('/audio/impact.mp3', 3, 0.7)
 }
 
 // --- SFX ---
@@ -148,6 +149,48 @@ export function playCountdownGo(): void {
   gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25)
   osc.start(ctx.currentTime)
   osc.stop(ctx.currentTime + 0.25)
+}
+
+/** Heavy thud for garbage slab landing (sub-bass hit + noise burst) */
+export function playGarbageLand(): void {
+  if (muted) return
+  const ctx = getAudioCtx()
+  const now = ctx.currentTime
+
+  // Sub-bass hit
+  const osc = ctx.createOscillator()
+  const oscGain = ctx.createGain()
+  osc.connect(oscGain)
+  oscGain.connect(ctx.destination)
+  osc.type = 'sine'
+  osc.frequency.setValueAtTime(80, now)
+  osc.frequency.exponentialRampToValueAtTime(30, now + 0.15)
+  oscGain.gain.setValueAtTime(0.5, now)
+  oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2)
+  osc.start(now)
+  osc.stop(now + 0.2)
+
+  // Noise burst for impact texture
+  const bufferSize = ctx.sampleRate * 0.08
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate)
+  const data = noiseBuffer.getChannelData(0)
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * 0.6
+  }
+  const noise = ctx.createBufferSource()
+  noise.buffer = noiseBuffer
+  const noiseGain = ctx.createGain()
+  noise.connect(noiseGain)
+  noiseGain.connect(ctx.destination)
+  noiseGain.gain.setValueAtTime(0.25, now)
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1)
+  noise.start(now)
+  noise.stop(now + 0.1)
+}
+
+/** Metal impact sound for incoming garbage */
+export function playIncomingGarbage(): void {
+  playSfx('/audio/impact.mp3')
 }
 
 // --- Music ---

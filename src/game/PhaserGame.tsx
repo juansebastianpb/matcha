@@ -35,6 +35,7 @@ export function PhaserGame(_props: PhaserGameProps) {
         id="phaser-container"
         ref={containerRef}
         className={`w-full h-full transition-opacity duration-150 ${ready ? 'opacity-100' : 'opacity-0'}`}
+        style={{ touchAction: 'none' }}
       />
     </div>
   )

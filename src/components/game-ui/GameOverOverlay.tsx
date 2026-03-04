@@ -57,7 +57,7 @@ export function GameOverOverlay({ onPlayAgain }: GameOverOverlayProps) {
 
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-xl z-20">
-      <div className="text-center p-6 gameover-slide-up">
+      <div className="text-center p-4 sm:p-6 gameover-slide-up">
         {/* Title with flanking character faces */}
         <div className="flex items-center justify-center gap-3 mb-1">
           <div className="gameover-face-left">

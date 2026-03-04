@@ -5,6 +5,8 @@ import { Play } from './pages/Play'
 import { Leaderboard } from './pages/Leaderboard'
 import { HowToPlay } from './pages/HowToPlay'
 import { Profile } from './pages/Profile'
+import { Lobby } from './pages/Lobby'
+import { Vs } from './pages/Vs'
 
 export default function App() {
   return (
@@ -13,6 +15,8 @@ export default function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<Landing />} />
           <Route path="/play" element={<Play />} />
+          <Route path="/lobby" element={<Lobby />} />
+          <Route path="/vs" element={<Vs />} />
           <Route path="/leaderboard" element={<Leaderboard />} />
           <Route path="/how-to-play" element={<HowToPlay />} />
           <Route path="/profile" element={<Profile />} />

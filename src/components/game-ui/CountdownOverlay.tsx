@@ -21,10 +21,10 @@ const STEPS: Step[] = [
 
 // Radial glow config per step (index 0=step3, 1=step2, 2=step1, 3=GO!)
 const GLOW_CONFIG = [
-  { opacity: 0.3, size: 200 },
-  { opacity: 0.4, size: 250 },
-  { opacity: 0.5, size: 300 },
-  { opacity: 0.6, size: 350 },
+  { opacity: 0.3, size: 140 },
+  { opacity: 0.4, size: 175 },
+  { opacity: 0.5, size: 210 },
+  { opacity: 0.6, size: 245 },
 ]
 
 const STEP_DURATION = 900
@@ -91,7 +91,7 @@ export function CountdownOverlay() {
       {/* Semi-transparent backdrop */}
       <div className="absolute inset-0 bg-black/20 rounded-2xl" />
 
-      <div className="relative flex items-center gap-4">
+      <div className="relative flex items-center gap-2 sm:gap-4">
         {/* Left face */}
         <div
           className={phase === 'show' ? 'countdown-face-left' : 'opacity-0'}
@@ -99,7 +99,7 @@ export function CountdownOverlay() {
           <CharacterFace
             character={faces.leftChar}
             expression={faces.leftExpr}
-            size={56}
+            size={40}
           />
         </div>
 
@@ -125,7 +125,7 @@ export function CountdownOverlay() {
             key={countdown}
             className={phase === 'show' ? 'countdown-pop' : 'countdown-out'}
             style={{
-              fontSize: step.display === 'GO!' ? '100px' : '120px',
+              fontSize: step.display === 'GO!' ? 'clamp(60px, 20vw, 100px)' : 'clamp(72px, 25vw, 120px)',
               fontWeight: 900,
               color: step.color,
               textShadow: `
@@ -146,7 +146,7 @@ export function CountdownOverlay() {
             <div
               className={phase === 'show' ? 'countdown-pop' : 'countdown-out'}
               style={{
-                fontSize: '28px',
+                fontSize: 'clamp(18px, 5vw, 28px)',
                 fontWeight: 900,
                 color: step.color,
                 textShadow: `
@@ -169,7 +169,7 @@ export function CountdownOverlay() {
           <CharacterFace
             character={faces.rightChar}
             expression={faces.rightExpr}
-            size={56}
+            size={40}
           />
         </div>
       </div>

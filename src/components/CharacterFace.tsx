@@ -6,6 +6,7 @@
  * = 6 characters x 8 expressions = 48 visually distinct faces.
  */
 import type { Character, Expression } from '../characters'
+import { GARBAGE_BLOCK } from '../characters'
 
 const F = '#2d3436'
 
@@ -732,6 +733,61 @@ function StarPupil({ x, y, s }: { x: number; y: number; s: number }) {
       <line x1={x - s * 0.6} y1={y - s * 0.6} x2={x + s * 0.6} y2={y + s * 0.6} stroke="white" strokeWidth="1.5" strokeLinecap="round" />
       <line x1={x + s * 0.6} y1={y - s * 0.6} x2={x - s * 0.6} y2={y + s * 0.6} stroke="white" strokeWidth="1.5" strokeLinecap="round" />
     </g>
+  )
+}
+
+// ── Garbage face (metallic slab face for UI) ──────────────────
+
+export function GarbageFace({ size = 60, className }: { size?: number; className?: string }) {
+  const darker = darken(GARBAGE_BLOCK.color, 0.15)
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 60 60"
+      overflow="visible"
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {/* Shadow */}
+      <circle cx="31" cy="32" r="26" fill="black" opacity="0.15" />
+      {/* Metallic body */}
+      <circle cx="30" cy="30" r="26" fill={GARBAGE_BLOCK.color} />
+      {/* Border */}
+      <circle cx="30" cy="30" r="26" fill="none" stroke={darker} strokeWidth="2" />
+      {/* Highlight */}
+      <ellipse cx="25" cy="20" rx="13" ry="7" fill="white" opacity="0.15" />
+      {/* Corner rivets */}
+      {[[16, 16], [44, 16], [16, 44], [44, 44]].map(([rx, ry], i) => (
+        <g key={i}>
+          <circle cx={rx} cy={ry} r="3" fill={darker} />
+          <circle cx={rx} cy={ry} r="2" fill={GARBAGE_BLOCK.color} />
+          <circle cx={rx - 0.5} cy={ry - 0.5} r="0.8" fill="white" opacity="0.4" />
+        </g>
+      ))}
+      {/* Angry eyes */}
+      {/* Left eye */}
+      <ellipse cx="21" cy="28" rx="7" ry="5.5" fill="#e8e0d0" />
+      <ellipse cx="21" cy="28" rx="7" ry="5.5" fill="none" stroke={F} strokeWidth="1" opacity="0.5" />
+      <circle cx="20" cy="29" r="3" fill="#882222" />
+      <circle cx="20" cy="29" r="1.5" fill="#110808" />
+      <circle cx="21" cy="28" r="1" fill="white" opacity="0.7" />
+      {/* Left angry eyelid */}
+      <polygon points="13,22 29,26 29,20 13,20" fill={GARBAGE_BLOCK.color} />
+      <line x1="14" y1="23" x2="28" y2="26" stroke={darker} strokeWidth="1.5" />
+      {/* Right eye */}
+      <ellipse cx="39" cy="28" rx="7" ry="5.5" fill="#e8e0d0" />
+      <ellipse cx="39" cy="28" rx="7" ry="5.5" fill="none" stroke={F} strokeWidth="1" opacity="0.5" />
+      <circle cx="40" cy="29" r="3" fill="#882222" />
+      <circle cx="40" cy="29" r="1.5" fill="#110808" />
+      <circle cx="41" cy="28" r="1" fill="white" opacity="0.7" />
+      {/* Right angry eyelid */}
+      <polygon points="47,22 31,26 31,20 47,20" fill={GARBAGE_BLOCK.color} />
+      <line x1="46" y1="23" x2="32" y2="26" stroke={darker} strokeWidth="1.5" />
+      {/* Flat menacing mouth */}
+      <line x1="22" y1="40" x2="38" y2="40" stroke={F} strokeWidth="2.5" strokeLinecap="round" />
+    </svg>
   )
 }
 

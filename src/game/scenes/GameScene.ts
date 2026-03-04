@@ -32,14 +32,11 @@ const DANGER_WOBBLE_FREQ = [0.006, 0.012, 0.02] as const
 const SCORE_POPUP_FONT = 20
 const CHAIN_FONT = 48
 const COMBO_FONT = 42
-const POP_IN_DURATION = 200
-const FLOAT_DURATION = 900
 const SCORE_RISE = 60
 const SWELL_PEAK = 1.35
 const STAGGER_MS = 40
 const DEATH_COL_DELAY = 80
 const DEATH_ROW_DELAY = 30
-const SPEED_LINES_MAX = 12
 const DANGER_ALPHA = [0, 0.1, 0.25, 0.4] as const
 
 // Hype words escalating by combo/chain size
@@ -125,7 +122,7 @@ export class GameScene extends Phaser.Scene {
     this.engine.on('chainMatchMade', (effect) => {
       if (this.isGameOver) return
       // Suppress all effects during startup grace period
-      if (this.engineStepCount < 90) return
+      if (this.engineStepCount < 30) return
       this.totalBlocksCleared += effect.indices?.length ?? 0
       const chainNum = effect.chainNumber ?? 0
       if (chainNum > 1) {
@@ -172,7 +169,7 @@ export class GameScene extends Phaser.Scene {
     this.engine.on('matchMade', (effect) => {
       if (this.isGameOver) return
       // Suppress all effects during startup grace period
-      if (this.engineStepCount < 90) return
+      if (this.engineStepCount < 30) return
       this.totalBlocksCleared += effect.indices?.length ?? 0
       const count = effect.indices?.length ?? 0
       Sound.playMatch()
@@ -236,7 +233,7 @@ export class GameScene extends Phaser.Scene {
 
     this.engine.on('flashDone', (effect) => {
       if (this.isGameOver) return
-      if (this.engineStepCount < 90) return
+      if (this.engineStepCount < 30) return
       // Particles on clear
       if (effect.indices) {
         for (const idx of effect.indices) {
@@ -249,14 +246,14 @@ export class GameScene extends Phaser.Scene {
 
     this.engine.on('chainDone', () => {
       if (this.isGameOver) return
-      if (this.engineStepCount < 90) return
+      if (this.engineStepCount < 30) return
       this.hideMultiplierBanner()
       useGameStore.getState().setChain(0)
     })
 
     this.engine.on('blockLanded', (effect) => {
       if (this.isGameOver) return
-      if (this.engineStepCount < 90) return
+      if (this.engineStepCount < 30) return
       Sound.playLand()
       // Landing dust
       if (effect.index !== undefined) {
@@ -276,7 +273,7 @@ export class GameScene extends Phaser.Scene {
     // Cursor moves up when a row is added
     this.engine.on('addRow', () => {
       if (this.isGameOver) return
-      if (this.engineStepCount < 90) return
+      if (this.engineStepCount < 30) return
       if (this.cursorY > 0) this.cursorY--
       Sound.playRowPush()
     })
@@ -422,6 +419,7 @@ export class GameScene extends Phaser.Scene {
 
   private handlePointer(pointer: Phaser.Input.Pointer): void {
     if (this.isGameOver) return
+    if (useGameStore.getState().countdown !== null) return
 
     const col = Math.floor((pointer.x - GRID_OFFSET_X) / CELL_SIZE)
     const row = Math.floor((pointer.y - GRID_OFFSET_Y) / CELL_SIZE)
@@ -442,6 +440,7 @@ export class GameScene extends Phaser.Scene {
 
   private doSwap(): void {
     if (this.isGameOver) return
+    if (useGameStore.getState().countdown !== null) return
     Sound.playSwap()
     this.engine.addEvent({
       time: this.engine.time,
@@ -1391,72 +1390,6 @@ export class GameScene extends Phaser.Scene {
     // Main stroke
     this.cursorGraphics.lineStyle(2.5, 0xfbbf24, alpha)
     this.cursorGraphics.strokeRoundedRect(x - 2, y - 2, w, h, 12)
-  }
-
-  private showPopup(text: string, color: string, x: number, y: number, fontSize = 16): void {
-    // Shadow text for 3D depth
-    const shadow = this.add.text(x + 2, y + 2, text, {
-      fontSize: `${fontSize}px`,
-      fontFamily: 'Arial Black, Arial',
-      color: '#000000',
-      stroke: '#000000',
-      strokeThickness: 4,
-    })
-    shadow.setOrigin(0.5)
-    shadow.setDepth(19)
-    shadow.setAlpha(0.5)
-    shadow.setScale(0.3)
-
-    // Main text
-    const popup = this.add.text(x, y, text, {
-      fontSize: `${fontSize}px`,
-      fontFamily: 'Arial Black, Arial',
-      color,
-      stroke: '#000000',
-      strokeThickness: 3,
-      shadow: {
-        offsetX: 0,
-        offsetY: 0,
-        color: '#FFD700',
-        blur: 12,
-        fill: true,
-      },
-    })
-    popup.setOrigin(0.5)
-    popup.setDepth(20)
-    popup.setScale(0.3)
-
-    // Elastic entrance: Back.easeOut 0.3 → 1.1 scale
-    this.tweens.add({
-      targets: [popup, shadow],
-      scaleX: 1.1,
-      scaleY: 1.1,
-      duration: POP_IN_DURATION,
-      ease: 'Back.easeOut',
-      onComplete: () => {
-        // Float up + fade
-        this.tweens.add({
-          targets: popup,
-          y: y - SCORE_RISE,
-          alpha: 0,
-          scaleX: 1,
-          scaleY: 1,
-          duration: FLOAT_DURATION,
-          ease: 'Power2',
-          onComplete: () => popup.destroy(),
-        })
-        this.tweens.add({
-          targets: shadow,
-          y: y + 2 - SCORE_RISE,
-          alpha: 0,
-          scaleX: 1,
-          scaleY: 1,
-          duration: FLOAT_DURATION,
-          ease: 'Power2',
-          onComplete: () => shadow.destroy(),
-        })
-      },
-    })
   }
 
   private endGame(): void {

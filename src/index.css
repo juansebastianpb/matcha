@@ -164,6 +164,32 @@
   animation: confetti-fly ease-out forwards;
 }
 
+/* VS badge swing + color cycle */
+@keyframes vs-swing {
+  0%, 100% { transform: rotate(-3deg) scale(1); }
+  25% { transform: rotate(3deg) scale(1.05); }
+  50% { transform: rotate(-2deg) scale(1); }
+  75% { transform: rotate(2deg) scale(1.02); }
+}
+
+@keyframes vs-color-shift {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+.vs-text-swing {
+  animation: vs-swing 2.5s ease-in-out infinite, vs-color-shift 3s linear infinite;
+}
+
+/* Kawaii face bounce */
+@keyframes kawaii-face-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+.kawaii-face-bounce {
+  animation: kawaii-face-bounce 2s ease-in-out infinite;
+}
+
 @keyframes confetti-fly {
   0% {
     transform: rotate(var(--r0)) scale(0.6);

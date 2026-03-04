@@ -121,6 +121,63 @@ export function spawnTrailParticle(
 }
 
 /**
+ * Spawn garbage impact — wide dust cloud + metallic sparks along slab bottom edge.
+ */
+export function spawnGarbageImpact(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  width: number,
+): void {
+  const baseY = y
+
+  // Dust cloud across the slab width
+  const dustCount = Math.max(6, width / 10)
+  for (let i = 0; i < dustCount; i++) {
+    const px = x + (Math.random() - 0.5) * width
+    const dust = scene.add.sprite(px, baseY, 'particle_white')
+    dust.setDisplaySize(5, 5)
+    dust.setDepth(10)
+    dust.setAlpha(0.5)
+
+    scene.tweens.add({
+      targets: dust,
+      x: px + (Math.random() - 0.5) * 20,
+      y: baseY + 4 + Math.random() * 6,
+      displayWidth: 12,
+      displayHeight: 12,
+      alpha: 0,
+      duration: 250 + Math.random() * 150,
+      ease: 'Power2',
+      onComplete: () => dust.destroy(),
+    })
+  }
+
+  // Metallic sparks flying outward from edges
+  for (let i = 0; i < 4; i++) {
+    const side = i < 2 ? -1 : 1
+    const sx = x + side * (width / 2) + (Math.random() - 0.5) * width * 0.3
+    const spark = scene.add.sprite(sx, baseY, 'particle_white')
+    spark.setDisplaySize(3, 3)
+    spark.setDepth(11)
+    spark.setAlpha(0.8)
+    spark.setTint(0xaab0c0)
+
+    scene.tweens.add({
+      targets: spark,
+      x: sx + side * (10 + Math.random() * 15),
+      y: baseY - 5 - Math.random() * 10,
+      alpha: 0,
+      scaleX: 0.1,
+      scaleY: 0.1,
+      duration: 200 + Math.random() * 100,
+      ease: 'Power2',
+      onComplete: () => spark.destroy(),
+    })
+  }
+}
+
+/**
  * Spawn landing dust — 3 white circles at block base, spread + scale up + fade.
  */
 export function spawnLandingDust(

@@ -9,6 +9,7 @@ import { GameOverOverlay } from '../components/game-ui/GameOverOverlay'
 import { CountdownOverlay } from '../components/game-ui/CountdownOverlay'
 import { HypeOverlay } from '../components/game-ui/HypeOverlay'
 import { SideDecorations } from '../components/game-ui/SideDecorations'
+import { MuteToggle } from '../components/game-ui/MuteToggle'
 import { useGameStore } from '../stores/gameStore'
 
 export function Play() {
@@ -37,9 +38,13 @@ export function Play() {
 
       {/* Main game content */}
       <div className="h-full flex flex-col items-center px-4 py-2 relative z-10">
-        {/* Score bar */}
-        <div className="flex justify-center items-center w-full max-w-2xl px-2 shrink-0">
-          <ScoreDisplay />
+        {/* Score bar + mute toggle */}
+        <div className="flex items-center w-full max-w-2xl px-2 shrink-0">
+          <div className="w-8" />
+          <div className="flex-1 flex justify-center">
+            <ScoreDisplay />
+          </div>
+          <MuteToggle />
         </div>
 
         {/* Game container — fills remaining height */}
