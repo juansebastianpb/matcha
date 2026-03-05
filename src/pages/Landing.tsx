@@ -470,20 +470,6 @@ export function Landing() {
 
 // ── Controls helpers ──────────────────────────────────────────
 
-function ControlRow({ keys, icon, label }: { keys?: string[]; icon?: React.ReactNode; label: string }) {
-  return (
-    <div className="flex items-center gap-3">
-      {icon && <div className="shrink-0">{icon}</div>}
-      {keys && (
-        <div className="flex gap-1.5 shrink-0">
-          {keys.map((k) => <Key key={k} label={k} />)}
-        </div>
-      )}
-      <span className="text-white/50 text-sm">{label}</span>
-    </div>
-  )
-}
-
 function Key({ label }: { label: string }) {
   const isWide = label.length > 2
   return (
