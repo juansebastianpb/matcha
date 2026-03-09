@@ -8,10 +8,8 @@ import { VsGameOverOverlay } from '../components/game-ui/VsGameOverOverlay'
 import { SideDecorations } from '../components/game-ui/SideDecorations'
 import { MuteToggle } from '../components/game-ui/MuteToggle'
 import { stopMusic } from '../game/audio/SoundManager'
-import { setPostMatchHandlers } from '../services/challenge'
 import { useGameStore } from '../stores/gameStore'
 import { useMatchStore } from '../stores/matchStore'
-import { useChallengeStore } from '../stores/challengeStore'
 import { VS_GAME_WIDTH, VS_GAME_HEIGHT, VS_MOBILE_GAME_WIDTH, VS_MOBILE_GAME_HEIGHT } from '../game/vs-constants'
 
 const isMobile = window.innerWidth < 768
@@ -46,20 +44,6 @@ export function Vs() {
     observer.observe(el)
     return () => observer.disconnect()
   }, [gameWidth, gameHeight])
-
-  // Set up Challenge post-match handlers
-  useEffect(() => {
-    const isChallengeMatch = useMatchStore.getState().isChallengeMatch
-    if (!isChallengeMatch) return
-    setPostMatchHandlers({
-      onRematchStarting: (data) => {
-        useChallengeStore.getState().setChallengeMatchId(data.matchId)
-      },
-      onNewOpponent: () => {
-        useMatchStore.getState().cleanup()
-      },
-    })
-  }, [])
 
   // Stop music on unmount
   useEffect(() => {

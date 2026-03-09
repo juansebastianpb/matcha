@@ -16,12 +16,6 @@ export interface MatchStartPayload {
   hostSeed: number
   guestSeed: number
   startAt: number  // timestamp ms
-  challengeMatchId?: string
-}
-
-export interface ChallengeInfoPayload {
-  challengePlayerId: string
-  challengeEmail: string
 }
 
 export interface MatchChannel {
@@ -31,7 +25,6 @@ export interface MatchChannel {
   sendReady(): void
   sendMatchStart(payload: MatchStartPayload): void
   sendDisconnect(): void
-  sendChallengeInfo(payload: ChallengeInfoPayload): void
 
   onOpponentEvent(cb: (event: GameEventPayload) => void): void
   onOpponentGarbage(cb: (slab: GarbagePayload) => void): void
@@ -39,7 +32,6 @@ export interface MatchChannel {
   onOpponentReady(cb: () => void): void
   onMatchStart(cb: (payload: MatchStartPayload) => void): void
   onOpponentDisconnect(cb: () => void): void
-  onChallengeInfo(cb: (payload: ChallengeInfoPayload) => void): void
 
   resetCallbacks(): void
   destroy(): void
@@ -52,9 +44,7 @@ export function createMatchChannel(channel: RealtimeChannel): MatchChannel {
   const readyCallbacks: (() => void)[] = []
   const matchStartCallbacks: ((payload: MatchStartPayload) => void)[] = []
   const disconnectCallbacks: (() => void)[] = []
-  const challengeInfoCallbacks: ((payload: ChallengeInfoPayload) => void)[] = []
 
-  // Listen for broadcast messages
   channel.on('broadcast', { event: 'input' }, ({ payload }) => {
     eventCallbacks.forEach(cb => cb(payload as GameEventPayload))
   })
@@ -77,10 +67,6 @@ export function createMatchChannel(channel: RealtimeChannel): MatchChannel {
 
   channel.on('broadcast', { event: 'disconnect' }, () => {
     disconnectCallbacks.forEach(cb => cb())
-  })
-
-  channel.on('broadcast', { event: 'challenge_info' }, ({ payload }) => {
-    challengeInfoCallbacks.forEach(cb => cb(payload as ChallengeInfoPayload))
   })
 
   return {
@@ -108,17 +94,12 @@ export function createMatchChannel(channel: RealtimeChannel): MatchChannel {
       channel.send({ type: 'broadcast', event: 'disconnect', payload: {} })
     },
 
-    sendChallengeInfo(payload: ChallengeInfoPayload) {
-      channel.send({ type: 'broadcast', event: 'challenge_info', payload })
-    },
-
     onOpponentEvent(cb) { eventCallbacks.push(cb) },
     onOpponentGarbage(cb) { garbageCallbacks.push(cb) },
     onOpponentGameOver(cb) { gameOverCallbacks.push(cb) },
     onOpponentReady(cb) { readyCallbacks.push(cb) },
     onMatchStart(cb) { matchStartCallbacks.push(cb) },
     onOpponentDisconnect(cb) { disconnectCallbacks.push(cb) },
-    onChallengeInfo(cb) { challengeInfoCallbacks.push(cb) },
 
     resetCallbacks() {
       eventCallbacks.length = 0
@@ -127,7 +108,6 @@ export function createMatchChannel(channel: RealtimeChannel): MatchChannel {
       readyCallbacks.length = 0
       matchStartCallbacks.length = 0
       disconnectCallbacks.length = 0
-      challengeInfoCallbacks.length = 0
     },
 
     destroy() {

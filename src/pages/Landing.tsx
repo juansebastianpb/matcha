@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 import { CHARACTERS } from '../characters'
@@ -48,6 +48,21 @@ const HERO_FACES: { charIdx: number; expression: Expression; size: number; opaci
 export function Landing() {
   const [showModeSelect, setShowModeSelect] = useState(false)
   const navigate = useNavigate()
+  const challengeButtonRendered = useRef(false)
+
+  // Render the Challenge inline button once the div is in the DOM
+  useEffect(() => {
+    if (showModeSelect || challengeButtonRendered.current) return
+    const tryRender = () => {
+      if (window.Challenge?.renderButton) {
+        window.Challenge.renderButton('#challenge-button', { variant: '1v1', size: 'lg', fullWidth: true })
+        challengeButtonRendered.current = true
+      } else {
+        setTimeout(tryRender, 200)
+      }
+    }
+    tryRender()
+  }, [showModeSelect])
 
   const handleCpuMatch = (difficulty: AIDifficulty) => {
     useMatchStore.getState().startCpuMatch(difficulty)
@@ -100,11 +115,15 @@ export function Landing() {
             A kawaii block-swapping puzzle game. Match colors, build chains, and chase high scores!
           </p>
           {!showModeSelect ? (
-            <div className="flex gap-4 justify-center">
-              <Button size="lg" onClick={() => setShowModeSelect(true)}>Single Player</Button>
-              <Link to="/lobby">
-                <Button size="lg" variant="secondary">Multiplayer</Button>
-              </Link>
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex gap-4 justify-center">
+                <Button size="lg" onClick={() => setShowModeSelect(true)}>Single Player</Button>
+                <Link to="/lobby">
+                  <Button size="lg" variant="secondary">Multiplayer</Button>
+                </Link>
+              </div>
+              {/* Challenge renders its own styled button into this container */}
+              <div id="challenge-button" className="mt-2 [&_button]:!w-full" style={{ width: '356px' }} />
             </div>
           ) : (
             <div className="bg-white/[0.06] border border-white/[0.08] rounded-2xl backdrop-blur-sm p-5 max-w-xs w-full mx-auto">
