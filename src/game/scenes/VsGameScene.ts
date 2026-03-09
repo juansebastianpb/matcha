@@ -259,6 +259,8 @@ export class VsGameScene extends Phaser.Scene {
         const store = useGameStore.getState()
         store.setScore(this.local.lastState.score)
         store.tickDisplayScore()
+        // Send live score to opponent in Challenge matches
+        window.Challenge?.updateScore?.(this.local.lastState.score)
       }
     }
 

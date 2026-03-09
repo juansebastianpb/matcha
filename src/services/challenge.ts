@@ -1,4 +1,5 @@
 import { useChallengeStore } from '../stores/challengeStore'
+import { useMatchStore } from '../stores/matchStore'
 
 const CHALLENGE_GAME_ID = import.meta.env.VITE_CHALLENGE_GAME_ID || ''
 const CHALLENGE_API_KEY = import.meta.env.VITE_CHALLENGE_API_KEY || ''
@@ -33,6 +34,9 @@ function doInit(): void {
     },
     onClose: () => {
       // Widget overlay closed by user
+    },
+    onOpponentScore: ({ score }: { userId: string; score: number }) => {
+      useMatchStore.getState().setOpponentScore(score)
     },
   })
 
@@ -89,6 +93,7 @@ interface ChallengeInitConfig {
   buttonText?: string
   onReady?: (player: ChallengePlayer) => void
   onClose?: () => void
+  onOpponentScore?: (data: { userId: string; score: number }) => void
 }
 
 declare global {
@@ -109,6 +114,7 @@ declare global {
         onRematchStarting?: (data: { matchId: string; roundNumber: number; opponent: ChallengeOpponent }) => void
         onNewOpponent?: () => void
       }) => void
+      updateScore: (score: number) => void
       isAuthenticated: () => Promise<boolean>
       getBalance: () => Promise<number>
       getUser: () => Promise<{ userId: string; email: string } | null>
