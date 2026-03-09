@@ -363,19 +363,21 @@ export const useMatchStore = create<MatchState>((set, get) => ({
   setFinished: (result: 'win' | 'lose') => {
     set({ mode: 'finished', result })
 
-    const { isChallengeMatch, challengeMatchId } = get()
+    const { isChallengeMatch, challengeMatchId, opponentChallengeEmail } = get()
     if (!isChallengeMatch || !challengeMatchId) return
 
-    // Settle via Edge Function — only one player needs to call this (host).
-    // Settlement is idempotent so both calling is safe.
+    const challengeState = useChallengeStore.getState()
+    const entryFee = challengeState.entryFee
+    const opponent = { email: opponentChallengeEmail ?? '' }
+
+    // Settle via Edge Function — only the winner calls this.
     const settle = async () => {
       try {
-        const challengeState = useChallengeStore.getState()
         useChallengeStore.getState().setSettling(true)
 
         const winnerId = result === 'win'
           ? challengeState.playerId
-          : null // Let the opponent's settle call declare them winner
+          : null
 
         if (winnerId) {
           await callEdgeFunction('challenge-settle-match', {
@@ -388,6 +390,14 @@ export const useMatchStore = create<MatchState>((set, get) => ({
         console.error('Challenge settle error:', err)
         useChallengeStore.getState().setSettling(false)
         useChallengeStore.getState().setError((err as Error).message)
+      }
+
+      // Show the Challenge widget result screen (payout, rematch, etc.)
+      if (result === 'win') {
+        const profit = (entryFee * 2 * 0.85) - entryFee
+        window.Challenge?.showWin?.({ matchId: challengeMatchId, opponent, profit })
+      } else {
+        window.Challenge?.showLose?.({ matchId: challengeMatchId, opponent, loss: entryFee })
       }
     }
 
