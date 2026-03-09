@@ -15,10 +15,10 @@ export function useChallenge() {
     initChallenge()
 
     setupPostMatchHandlers({
-      onRematchStarting: ({ matchId, opponent }) => {
+      onRematchStarting: async ({ matchId, opponent }) => {
         // Reset game state and start a new Challenge match in-place
         useGameStore.getState().reset()
-        useMatchStore.getState().startChallengeMatch(matchId, opponent?.email ?? null)
+        await useMatchStore.getState().startChallengeMatch(matchId, opponent?.email ?? null)
         navigate('/vs')
       },
       onNewOpponent: () => {
@@ -32,13 +32,13 @@ export function useChallenge() {
 
   // Fallback: listen for GAME_START event in case the callback chain fails
   useEffect(() => {
-    const handleGameStart = (event: CustomEvent) => {
+    const handleGameStart = async (event: CustomEvent) => {
       const { type, data } = event.detail || {}
       if (type === 'CHALLENGE_GAME_START' && data?.matchId) {
         // Only navigate if not already on /vs
         if (window.location.pathname !== '/vs') {
           useGameStore.getState().reset()
-          useMatchStore.getState().startChallengeMatch(data.matchId, data.opponent?.email ?? null)
+          await useMatchStore.getState().startChallengeMatch(data.matchId, data.opponent?.email ?? null)
           navigate('/vs')
         }
       }
