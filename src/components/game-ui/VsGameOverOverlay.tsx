@@ -2,8 +2,6 @@ import { useEffect, useRef, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGameStore } from '../../stores/gameStore'
 import { useMatchStore } from '../../stores/matchStore'
-import { useChallengeStore } from '../../stores/challengeStore'
-import { showWin, showLose } from '../../services/challenge'
 import { CPU_RIVALS } from '../../lib/cpuRivals'
 import { Button } from '../ui/Button'
 import { CharacterFace } from '../CharacterFace'
@@ -20,9 +18,6 @@ export function VsGameOverOverlay({ onRematch }: { onRematch?: () => void }) {
   const opponentDisconnected = useMatchStore((s) => s.opponentDisconnected)
   const cpuDifficulty = useMatchStore((s) => s.cpuDifficulty)
   const isChallengeMatch = useMatchStore((s) => s.isChallengeMatch)
-  const challengeMatchId = useMatchStore((s) => s.challengeMatchId)
-  const opponentChallengeEmail = useMatchStore((s) => s.opponentChallengeEmail)
-  const isSettling = useChallengeStore((s) => s.isSettling)
   const navigate = useNavigate()
 
   // Score count-up
@@ -50,23 +45,9 @@ export function VsGameOverOverlay({ onRematch }: { onRematch?: () => void }) {
     return () => cancelAnimationFrame(rafRef.current)
   }, [isGameOver, finalScore])
 
-  // Show Challenge widget result screens
-  const challengeShownRef = useRef(false)
-  useEffect(() => {
-    if (!isChallengeMatch || !challengeMatchId || !result || challengeShownRef.current) return
-    challengeShownRef.current = true
-    const opponent = { email: opponentChallengeEmail || 'opponent' }
-    if (result === 'win') {
-      showWin({ matchId: challengeMatchId, opponent, profit: 1.40 })
-    } else {
-      showLose({ matchId: challengeMatchId, opponent, loss: 2.00 })
-    }
-  }, [isChallengeMatch, challengeMatchId, result, opponentChallengeEmail])
-
-  // Reset ref when new game starts
-  useEffect(() => {
-    if (!result) challengeShownRef.current = false
-  }, [result])
+  // For Challenge matches, the widget auto-shows the result screen via WebSocket
+  // (with real payout amounts, rematch, etc.) — don't render our own overlay
+  if (isChallengeMatch) return null
 
   // Show overlay when game is over OR when match result is determined (e.g. disconnect)
   if (!(isGameOver || result)) return null
@@ -168,15 +149,9 @@ export function VsGameOverOverlay({ onRematch }: { onRematch?: () => void }) {
           </div>
         </div>
 
-        {isChallengeMatch && (
-          <div className={`text-center mb-3 text-sm font-bold ${isWin ? 'text-emerald-300' : 'text-red-400'}`}>
-            {isWin ? '+$1.40' : '-$2.00'}
-          </div>
-        )}
-
         <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
-          <Button onClick={handleRematch} variant="primary" size="lg" disabled={isChallengeMatch && isSettling}>
-            {isChallengeMatch && isSettling ? 'Settling...' : 'Rematch'}
+          <Button onClick={handleRematch} variant="primary" size="lg">
+            Rematch
           </Button>
           <Button onClick={handleMenu} variant="ghost" size="lg">
             Back to Menu
