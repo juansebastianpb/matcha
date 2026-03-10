@@ -1,6 +1,8 @@
 import { supabase } from './supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
+const SUBSCRIBE_TIMEOUT_MS = 5000
+
 function generateRoomCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no I/O/0/1 to avoid confusion
   let code = ''
@@ -8,6 +10,26 @@ function generateRoomCode(): string {
     code += chars[Math.floor(Math.random() * chars.length)]
   }
   return code
+}
+
+function subscribeWithTimeout(channel: RealtimeChannel): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      channel.unsubscribe()
+      reject(new Error('Connection timed out'))
+    }, SUBSCRIBE_TIMEOUT_MS)
+
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        clearTimeout(timer)
+        resolve()
+      }
+      if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+        clearTimeout(timer)
+        reject(new Error(`Channel error: ${status}`))
+      }
+    })
+  })
 }
 
 export interface RoomHandle {
@@ -24,12 +46,7 @@ export async function createRoom(roomCodeOverride?: string): Promise<RoomHandle>
     config: { broadcast: { self: false } },
   })
 
-  await new Promise<void>((resolve, reject) => {
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') resolve()
-      if (status === 'CLOSED' || status === 'CHANNEL_ERROR') reject(new Error(`Channel error: ${status}`))
-    })
-  })
+  await subscribeWithTimeout(channel)
 
   return { roomCode, channel, role: 'host' }
 }
@@ -76,12 +93,7 @@ export async function searchMatch(
     }
   })
 
-  await new Promise<void>((resolve, reject) => {
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') resolve()
-      if (status === 'CLOSED' || status === 'CHANNEL_ERROR') reject(new Error(`Channel error: ${status}`))
-    })
-  })
+  await subscribeWithTimeout(channel)
 
   // Broadcast seeking immediately, then every 1.5s
   const broadcastSeeking = () => {
@@ -108,12 +120,7 @@ export async function joinRoom(code: string): Promise<RoomHandle> {
     config: { broadcast: { self: false } },
   })
 
-  await new Promise<void>((resolve, reject) => {
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') resolve()
-      if (status === 'CLOSED' || status === 'CHANNEL_ERROR') reject(new Error(`Channel error: ${status}`))
-    })
-  })
+  await subscribeWithTimeout(channel)
 
   return { roomCode, channel, role: 'guest' }
 }

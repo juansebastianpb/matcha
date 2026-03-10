@@ -7,6 +7,14 @@ import type { GameState, GameEvent, GameEffect, GameOptions } from './types'
 export type { GameState, GameEvent, GameEffect, GameOptions } from './types'
 export type { Block } from './types'
 
+// Cache a snapshot every N ticks to reduce JSON.stringify calls.
+// Rollback replays at most CACHE_INTERVAL-1 extra ticks from the nearest snapshot.
+const CACHE_INTERVAL = 4
+// Maximum number of cached snapshots to keep
+const MAX_CACHE_SIZE = 32
+// Prune deduplication set when it exceeds this size
+const MAX_EFFECTS_SET_SIZE = 512
+
 export class GameEngine {
   stepper: ScoringStepper
   width: number
@@ -73,9 +81,21 @@ export class GameEngine {
       this.statesByTime.set(state.time, stateJSON)
       this.lastValidTime = state.time
     } else {
-      const stateJSON = this.statesByTime.get(this.lastValidTime)
-      if (!stateJSON) throw new Error('Unexpected cache miss')
-      state = JSON.parse(stateJSON)
+      // Find the nearest cached state at or before lastValidTime
+      let restoreTime = this.lastValidTime
+      while (!this.statesByTime.has(restoreTime) && restoreTime > 0) {
+        --restoreTime
+      }
+      const stateJSON = this.statesByTime.get(restoreTime)
+      if (!stateJSON) {
+        // Fall back to initial state
+        state = JSON.parse(this.initialStateJSON)
+        restoreTime = state.time
+        this.statesByTime.set(restoreTime, this.initialStateJSON)
+      } else {
+        state = JSON.parse(stateJSON)
+      }
+      this.lastValidTime = restoreTime
     }
 
     ++this._time
@@ -83,10 +103,26 @@ export class GameEngine {
       const events = this.eventsByTime[instant] || []
       const effects = this.stepper.step(state, events)
       this.emitEffects(instant, effects)
-      this.statesByTime.set(instant + 1, JSON.stringify(state))
+
+      // Cache snapshots at intervals or when events occurred (for precise rollback)
+      const nextTime = instant + 1
+      if (events.length > 0 || nextTime % CACHE_INTERVAL === 0) {
+        this.statesByTime.set(nextTime, JSON.stringify(state))
+      }
     }
     this.lastValidTime = this._time
-    this.statesByTime.delete(this.lastValidTime - 128) // cache size
+
+    // Evict old cache entries beyond MAX_CACHE_SIZE
+    if (this.statesByTime.size > MAX_CACHE_SIZE) {
+      const cutoff = this._time - MAX_CACHE_SIZE * CACHE_INTERVAL
+      for (const key of this.statesByTime.keys()) {
+        if (key < cutoff) this.statesByTime.delete(key)
+        else break
+      }
+    }
+
+    // Prune old events and effects to prevent unbounded growth
+    this.pruneOldData()
 
     this.stepper.postProcess(state)
     return state
@@ -111,12 +147,43 @@ export class GameEngine {
     if (this.lastValidTime === null) return
     this.lastValidTime = Math.min(this.lastValidTime, event.time)
     if (!this.statesByTime.has(this.lastValidTime)) {
-      this.invalidateCache()
+      // Find the nearest cached state before the event
+      let restoreTime = this.lastValidTime
+      while (restoreTime > 0 && !this.statesByTime.has(restoreTime)) {
+        --restoreTime
+      }
+      if (this.statesByTime.has(restoreTime)) {
+        this.lastValidTime = restoreTime
+      } else {
+        this.invalidateCache()
+      }
     }
   }
 
   on(type: string, callback: (effect: GameEffect) => void): void {
     this.listeners.push({ type, callback, triggered: false })
+  }
+
+  removeAllListeners(): void {
+    this.listeners.length = 0
+  }
+
+  private pruneOldData(): void {
+    const cutoff = this._time - MAX_CACHE_SIZE * CACHE_INTERVAL
+    if (cutoff <= 0) return
+
+    // Prune old events
+    for (const key of Object.keys(this.eventsByTime)) {
+      const numKey = Number(key)
+      if (numKey < cutoff) {
+        delete this.eventsByTime[numKey]
+      }
+    }
+
+    // Prune effects deduplication set when it gets large
+    if (this.effects.size > MAX_EFFECTS_SET_SIZE) {
+      this.effects.clear()
+    }
   }
 
   private emitEffects(time: number, effects: GameEffect[]): void {

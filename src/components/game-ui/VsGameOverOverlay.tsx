@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react'
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGameStore } from '../../stores/gameStore'
 import { useMatchStore } from '../../stores/matchStore'
@@ -17,12 +17,14 @@ export function VsGameOverOverlay({ onRematch }: { onRematch?: () => void }) {
   const opponentScore = useMatchStore((s) => s.opponentScore)
   const opponentDisconnected = useMatchStore((s) => s.opponentDisconnected)
   const cpuDifficulty = useMatchStore((s) => s.cpuDifficulty)
-  const isChallengeMatch = useMatchStore((s) => s.isChallengeMatch)
   const navigate = useNavigate()
 
   // Score count-up
   const [displayScore, setDisplayScore] = useState(0)
   const rafRef = useRef<number>(0)
+
+  // Double-click guard
+  const [actionTaken, setActionTaken] = useState(false)
 
   // Random characters
   const [charA, charB] = useMemo(() => {
@@ -31,7 +33,7 @@ export function VsGameOverOverlay({ onRematch }: { onRematch?: () => void }) {
   }, [isGameOver]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!isGameOver) { setDisplayScore(0); return }
+    if (!isGameOver) { setDisplayScore(0); setActionTaken(false); return }
     const start = performance.now()
     const duration = 1000
     const animate = (now: number) => {
@@ -45,19 +47,9 @@ export function VsGameOverOverlay({ onRematch }: { onRematch?: () => void }) {
     return () => cancelAnimationFrame(rafRef.current)
   }, [isGameOver, finalScore])
 
-  // For Challenge matches, the widget auto-shows the result screen via WebSocket
-  // (with real payout amounts, rematch, etc.) — don't render our own overlay
-  if (isChallengeMatch) return null
-
-  // Show overlay when game is over OR when match result is determined (e.g. disconnect)
-  if (!(isGameOver || result)) return null
-  if (!result) return null
-
-  const isWin = result === 'win'
-
-  const rival = cpuDifficulty ? CPU_RIVALS[cpuDifficulty] : null
-
-  const handleRematch = () => {
+  const handleRematch = useCallback(() => {
+    if (actionTaken) return
+    setActionTaken(true)
     if (onRematch) {
       onRematch()
     } else {
@@ -65,12 +57,22 @@ export function VsGameOverOverlay({ onRematch }: { onRematch?: () => void }) {
       useMatchStore.getState().requestRematch()
       navigate('/lobby')
     }
-  }
+  }, [actionTaken, onRematch, navigate])
 
-  const handleMenu = () => {
+  const handleMenu = useCallback(() => {
+    if (actionTaken) return
+    setActionTaken(true)
     useMatchStore.getState().cleanup()
     navigate('/')
-  }
+  }, [actionTaken, navigate])
+
+  // Show overlay when game is over AND match result is determined
+  if (!(isGameOver || result)) return null
+  if (!result) return null
+
+  const isWin = result === 'win'
+
+  const rival = cpuDifficulty ? CPU_RIVALS[cpuDifficulty] : null
 
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-xl z-20 pointer-events-auto">

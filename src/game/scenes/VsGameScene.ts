@@ -180,7 +180,17 @@ export class VsGameScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-X', () => this.doSwap())
     this.input.keyboard?.on('keydown-Z', () => this.doAddRow())
 
-    this.events.on('shutdown', () => stopMusic())
+    this.events.on('shutdown', () => {
+      stopMusic()
+      // Clean up engine listeners to prevent accumulation on rematch
+      this.local.engine.removeAllListeners()
+      this.remote.engine.removeAllListeners()
+      // Remove all pending delayed calls
+      this.time.removeAllEvents()
+      // Clear input listeners
+      this.input.removeAllListeners()
+      this.input.keyboard?.removeAllListeners()
+    })
 
     // Initial render
     this.local.lastState = this.local.engine.step()
@@ -259,8 +269,7 @@ export class VsGameScene extends Phaser.Scene {
         const store = useGameStore.getState()
         store.setScore(this.local.lastState.score)
         store.tickDisplayScore()
-        // Send live score to opponent in Challenge matches
-        window.Challenge?.updateScore?.(this.local.lastState.score)
+
       }
     }
 

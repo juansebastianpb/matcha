@@ -8,7 +8,6 @@ export interface ScoreEntry {
   blocks_cleared: number
   max_chain: number
   max_combo: number
-  challenge_match_id?: string
   created_at?: string
 }
 

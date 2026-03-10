@@ -30,7 +30,6 @@ create table if not exists scores (
   blocks_cleared integer default 0,
   max_chain integer default 0,
   max_combo integer default 0,
-  challenge_match_id text,
   created_at timestamptz default now()
 );
 

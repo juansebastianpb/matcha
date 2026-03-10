@@ -4,8 +4,6 @@ import { createMatchChannel } from '../services/matchChannel'
 import type { MatchChannel } from '../services/matchChannel'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import type { AIDifficulty } from '../game/ai/PuzzleAI'
-import { supabase } from '../services/supabase'
-import { useChallengeStore } from './challengeStore'
 
 export type MatchMode = 'idle' | 'searching' | 'creating' | 'waiting' | 'joining' | 'ready_check' | 'countdown' | 'playing' | 'finished'
 export type MatchResult = 'win' | 'lose' | null
@@ -31,18 +29,12 @@ interface MatchState {
   localSeed: number | null
   remoteSeed: number | null
 
-  // Challenge
-  isChallengeMatch: boolean
-  challengeMatchId: string | null
-  opponentChallengeEmail: string | null
-
   // Actions
   findMatch: () => Promise<void>
   cancelSearch: () => void
   createRoom: (roomCodeOverride?: string) => Promise<void>
   joinRoom: (code: string) => Promise<void>
   startCpuMatch: (difficulty: AIDifficulty) => void
-  startChallengeMatch: (matchId: string, opponentEmail?: string | null) => Promise<void>
   requestRematch: () => void
   confirmReady: () => void
   setPlaying: () => void
@@ -51,19 +43,6 @@ interface MatchState {
   setOpponentDisconnected: () => void
   cleanup: () => void
   reset: () => void
-}
-
-async function callEdgeFunction(name: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
-  if (!supabase) throw new Error('Supabase not configured')
-  const { data, error } = await supabase.functions.invoke(name, { body })
-  if (error) throw new Error(error.message || `Edge function ${name} failed`)
-  return data as Record<string, unknown>
-}
-
-const initialChallengeState = {
-  isChallengeMatch: false,
-  challengeMatchId: null as string | null,
-  opponentChallengeEmail: null as string | null,
 }
 
 export const useMatchStore = create<MatchState>((set, get) => ({
@@ -84,8 +63,6 @@ export const useMatchStore = create<MatchState>((set, get) => ({
   localSeed: null,
   remoteSeed: null,
   cpuDifficulty: null,
-  ...initialChallengeState,
-
   startCpuMatch: (difficulty: AIDifficulty) => {
     const localSeed = Math.floor(Math.random() * 2147483647)
     const remoteSeed = Math.floor(Math.random() * 2147483647)
@@ -105,75 +82,6 @@ export const useMatchStore = create<MatchState>((set, get) => ({
       opponentScore: 0,
       opponentDisconnected: false,
     })
-  },
-
-  // Called by Challenge widget's onRematchStarting callback with the matchId
-  startChallengeMatch: async (matchId: string, opponentEmail?: string | null) => {
-    try {
-      useChallengeStore.getState().setChallengeMatchId(matchId)
-
-      // Subscribe to a shared Supabase channel using matchId as the room key
-      const handle = await joinRoom(matchId)
-      const channel = createMatchChannel(handle.channel)
-
-      // Determine role: alphabetically lower email is host
-      const myEmail = useChallengeStore.getState().playerEmail ?? ''
-      const theirEmail = opponentEmail ?? ''
-      const isHost = myEmail < theirEmail
-
-      set({
-        isChallengeMatch: true,
-        challengeMatchId: matchId,
-        opponentChallengeEmail: opponentEmail ?? null,
-        mode: 'waiting',
-        role: isHost ? 'host' : 'guest',
-        channel,
-        rawChannel: handle.channel,
-        opponentConnected: false,
-        cpuDifficulty: null,
-        localSeed: null,
-        remoteSeed: null,
-        startAt: null,
-        error: null,
-        result: null,
-        opponentScore: 0,
-        opponentDisconnected: false,
-      })
-
-      if (isHost) {
-        // Host: wait for guest's ready signal, then broadcast seeds
-        channel.onOpponentReady(() => {
-          const hostSeed = Math.floor(Math.random() * 2147483647)
-          const guestSeed = Math.floor(Math.random() * 2147483647)
-          const startAt = Date.now() + 4000
-          channel.sendMatchStart({ hostSeed, guestSeed, startAt })
-          set({
-            mode: 'countdown',
-            opponentConnected: true,
-            localSeed: hostSeed,
-            remoteSeed: guestSeed,
-            startAt,
-          })
-        })
-        // Send ready so guest knows host is here too
-        channel.sendReady()
-      } else {
-        // Guest: listen for match_start from host, then use those seeds
-        channel.onMatchStart((payload) => {
-          set({
-            mode: 'countdown',
-            opponentConnected: true,
-            localSeed: payload.guestSeed,
-            remoteSeed: payload.hostSeed,
-            startAt: payload.startAt,
-          })
-        })
-        // Tell host we're ready
-        channel.sendReady()
-      }
-    } catch (err) {
-      set({ mode: 'idle', error: (err as Error).message })
-    }
   },
 
   findMatch: async () => {
@@ -263,7 +171,10 @@ export const useMatchStore = create<MatchState>((set, get) => ({
   },
 
   requestRematch: () => {
-    const { channel, role, cpuDifficulty } = get()
+    const { channel, role, cpuDifficulty, mode } = get()
+
+    // Only allow rematch from finished state
+    if (mode !== 'finished') return
 
     // CPU mode: skip network, restart directly
     if (cpuDifficulty) {
@@ -283,10 +194,6 @@ export const useMatchStore = create<MatchState>((set, get) => ({
       })
       return
     }
-
-    // Challenge match: rematch is handled by the widget via onRematchStarting.
-    // Don't do anything here — the widget will call startChallengeMatch with a new matchId.
-    if (get().isChallengeMatch) return
 
     if (!channel) return
 
@@ -361,47 +268,9 @@ export const useMatchStore = create<MatchState>((set, get) => ({
   setPlaying: () => set({ mode: 'playing' }),
 
   setFinished: (result: 'win' | 'lose') => {
+    // Don't overwrite if already finished (prevents delayed-call race)
+    if (get().mode === 'finished') return
     set({ mode: 'finished', result })
-
-    const { isChallengeMatch, challengeMatchId, opponentChallengeEmail } = get()
-    if (!isChallengeMatch || !challengeMatchId) return
-
-    const challengeState = useChallengeStore.getState()
-    const entryFee = challengeState.entryFee
-    const opponent = { email: opponentChallengeEmail ?? '' }
-
-    // Settle via Edge Function — only the winner calls this.
-    const settle = async () => {
-      try {
-        useChallengeStore.getState().setSettling(true)
-
-        const winnerId = result === 'win'
-          ? challengeState.playerId
-          : null
-
-        if (winnerId) {
-          await callEdgeFunction('challenge-settle-match', {
-            matchId: challengeMatchId,
-            winnerId,
-          })
-        }
-        useChallengeStore.getState().setSettling(false)
-      } catch (err) {
-        console.error('Challenge settle error:', err)
-        useChallengeStore.getState().setSettling(false)
-        useChallengeStore.getState().setError((err as Error).message)
-      }
-
-      // Show the Challenge widget result screen (payout, rematch, etc.)
-      if (result === 'win') {
-        const profit = (entryFee * 2 * 0.85) - entryFee
-        window.Challenge?.showWin?.({ matchId: challengeMatchId, opponent, profit })
-      } else {
-        window.Challenge?.showLose?.({ matchId: challengeMatchId, opponent, loss: entryFee })
-      }
-    }
-
-    settle()
   },
 
   setOpponentScore: (score: number) => set({ opponentScore: score }),
@@ -441,7 +310,6 @@ export const useMatchStore = create<MatchState>((set, get) => ({
       localSeed: null,
       remoteSeed: null,
       cpuDifficulty: null,
-      ...initialChallengeState,
     })
   },
 
@@ -468,7 +336,6 @@ export const useMatchStore = create<MatchState>((set, get) => ({
       localSeed: null,
       remoteSeed: null,
       cpuDifficulty: null,
-      ...initialChallengeState,
     })
   },
 }))

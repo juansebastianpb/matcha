@@ -354,8 +354,14 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-X', () => this.doSwap())
     this.input.keyboard?.on('keydown-Z', () => this.doAddRow())
 
-    // Stop music when scene shuts down (e.g. game destroyed on navigation)
-    this.events.on('shutdown', () => stopMusic())
+    // Clean up on shutdown (e.g. game destroyed on navigation)
+    this.events.on('shutdown', () => {
+      stopMusic()
+      this.engine.removeAllListeners()
+      this.time.removeAllEvents()
+      this.input.removeAllListeners()
+      this.input.keyboard?.removeAllListeners()
+    })
 
     // Initial render
     this.lastState = this.engine.step()

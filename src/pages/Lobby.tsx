@@ -5,7 +5,6 @@ import { CharacterFace } from '../components/CharacterFace'
 import { CHARACTERS } from '../characters'
 import { SideDecorations } from '../components/game-ui/SideDecorations'
 import { useMatchStore } from '../stores/matchStore'
-import { useChallengeStore } from '../stores/challengeStore'
 
 export function Lobby() {
   const navigate = useNavigate()
@@ -14,8 +13,6 @@ export function Lobby() {
   const error = useMatchStore((s) => s.error)
   const isAutoMatch = useMatchStore((s) => s.isAutoMatch)
   const localReady = useMatchStore((s) => s.localReady)
-  const isChallengeMatch = useMatchStore((s) => s.isChallengeMatch)
-  const entryFee = useChallengeStore((s) => s.entryFee)
   const [joinCode, setJoinCode] = useState('')
   const [showJoinInput, setShowJoinInput] = useState(false)
 
@@ -30,11 +27,12 @@ export function Lobby() {
     }
   }, [mode, navigate])
 
-  // Cleanup on unmount if still idle
+  // Cleanup on unmount — clean up any in-progress matchmaking state
+  // but don't clean up if we're transitioning to /vs (countdown/playing)
   useEffect(() => {
     return () => {
       const { mode } = useMatchStore.getState()
-      if (mode === 'idle' || mode === 'creating' || mode === 'searching') {
+      if (mode !== 'countdown' && mode !== 'playing' && mode !== 'finished') {
         useMatchStore.getState().cleanup()
       }
     }
@@ -77,18 +75,11 @@ export function Lobby() {
       <div className="h-full flex items-center justify-center px-4 relative z-10">
         <div className="bg-white/[0.06] border border-white/[0.08] rounded-2xl backdrop-blur-sm p-8 max-w-sm w-full">
           <h2 className="text-2xl font-black text-center mb-2">
-            <span className={`bg-gradient-to-r ${isChallengeMatch ? 'from-emerald-300 via-green-200 to-emerald-400' : 'from-pink-300 via-amber-200 to-yellow-200'} bg-clip-text text-transparent`}>
-              {isChallengeMatch ? 'Cash Match' : 'Multiplayer'}
+            <span className="bg-gradient-to-r from-pink-300 via-amber-200 to-yellow-200 bg-clip-text text-transparent">
+              Multiplayer
             </span>
           </h2>
-          {isChallengeMatch && (
-            <div className="flex justify-center mb-4">
-              <span className="inline-flex items-center gap-1.5 bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-sm font-bold px-3 py-1 rounded-full">
-                ${entryFee.toFixed(2)} entry
-              </span>
-            </div>
-          )}
-          {!isChallengeMatch && <div className="mb-4" />}
+          <div className="mb-4" />
 
           {error && (
             <div className="text-red-400 text-sm text-center mb-4 bg-red-400/10 rounded-lg px-3 py-2">

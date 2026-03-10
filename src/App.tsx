@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Layout } from './components/layout/Layout'
+import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import { Landing } from './pages/Landing'
 import { Play } from './pages/Play'
 import { Leaderboard } from './pages/Leaderboard'
@@ -7,21 +8,17 @@ import { HowToPlay } from './pages/HowToPlay'
 import { Profile } from './pages/Profile'
 import { Lobby } from './pages/Lobby'
 import { Vs } from './pages/Vs'
-import { useChallenge } from './hooks/useChallenge'
-
 function AppRoutes() {
-  useChallenge()
-
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route path="/" element={<Landing />} />
-        <Route path="/play" element={<Play />} />
-        <Route path="/lobby" element={<Lobby />} />
-        <Route path="/vs" element={<Vs />} />
-        <Route path="/leaderboard" element={<Leaderboard />} />
+        <Route path="/" element={<ErrorBoundary><Landing /></ErrorBoundary>} />
+        <Route path="/play" element={<ErrorBoundary><Play /></ErrorBoundary>} />
+        <Route path="/lobby" element={<ErrorBoundary fallbackMessage="Matchmaking error"><Lobby /></ErrorBoundary>} />
+        <Route path="/vs" element={<ErrorBoundary fallbackMessage="Game error"><Vs /></ErrorBoundary>} />
+        <Route path="/leaderboard" element={<ErrorBoundary><Leaderboard /></ErrorBoundary>} />
         <Route path="/how-to-play" element={<HowToPlay />} />
-        <Route path="/profile" element={<Profile />} />
+        <Route path="/profile" element={<ErrorBoundary><Profile /></ErrorBoundary>} />
       </Route>
     </Routes>
   )

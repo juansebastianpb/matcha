@@ -38,79 +38,96 @@ export interface MatchChannel {
 }
 
 export function createMatchChannel(channel: RealtimeChannel): MatchChannel {
-  const eventCallbacks: ((event: GameEventPayload) => void)[] = []
-  const garbageCallbacks: ((slab: GarbagePayload) => void)[] = []
-  const gameOverCallbacks: (() => void)[] = []
-  const readyCallbacks: (() => void)[] = []
-  const matchStartCallbacks: ((payload: MatchStartPayload) => void)[] = []
-  const disconnectCallbacks: (() => void)[] = []
+  let eventCallbacks: ((event: GameEventPayload) => void)[] = []
+  let garbageCallbacks: ((slab: GarbagePayload) => void)[] = []
+  let gameOverCallbacks: (() => void)[] = []
+  let readyCallbacks: (() => void)[] = []
+  let matchStartCallbacks: ((payload: MatchStartPayload) => void)[] = []
+  let disconnectCallbacks: (() => void)[] = []
+  let destroyed = false
 
+  // Register Supabase listeners once. They delegate to the callback arrays,
+  // so resetCallbacks() effectively silences them without needing to
+  // unregister from Supabase (which doesn't support selective .off()).
   channel.on('broadcast', { event: 'input' }, ({ payload }) => {
+    if (destroyed) return
     eventCallbacks.forEach(cb => cb(payload as GameEventPayload))
   })
 
   channel.on('broadcast', { event: 'garbage' }, ({ payload }) => {
+    if (destroyed) return
     garbageCallbacks.forEach(cb => cb(payload as GarbagePayload))
   })
 
   channel.on('broadcast', { event: 'game_over' }, () => {
+    if (destroyed) return
     gameOverCallbacks.forEach(cb => cb())
   })
 
   channel.on('broadcast', { event: 'ready' }, () => {
+    if (destroyed) return
     readyCallbacks.forEach(cb => cb())
   })
 
   channel.on('broadcast', { event: 'match_start' }, ({ payload }) => {
+    if (destroyed) return
     matchStartCallbacks.forEach(cb => cb(payload as MatchStartPayload))
   })
 
   channel.on('broadcast', { event: 'disconnect' }, () => {
+    if (destroyed) return
     disconnectCallbacks.forEach(cb => cb())
   })
 
   return {
     sendEvent(event: GameEventPayload) {
+      if (destroyed) return
       channel.send({ type: 'broadcast', event: 'input', payload: event })
     },
 
     sendGarbage(slab: GarbagePayload) {
+      if (destroyed) return
       channel.send({ type: 'broadcast', event: 'garbage', payload: slab })
     },
 
     sendGameOver() {
+      if (destroyed) return
       channel.send({ type: 'broadcast', event: 'game_over', payload: {} })
     },
 
     sendReady() {
+      if (destroyed) return
       channel.send({ type: 'broadcast', event: 'ready', payload: {} })
     },
 
     sendMatchStart(payload: MatchStartPayload) {
+      if (destroyed) return
       channel.send({ type: 'broadcast', event: 'match_start', payload })
     },
 
     sendDisconnect() {
+      if (destroyed) return
       channel.send({ type: 'broadcast', event: 'disconnect', payload: {} })
     },
 
-    onOpponentEvent(cb) { eventCallbacks.push(cb) },
-    onOpponentGarbage(cb) { garbageCallbacks.push(cb) },
-    onOpponentGameOver(cb) { gameOverCallbacks.push(cb) },
-    onOpponentReady(cb) { readyCallbacks.push(cb) },
-    onMatchStart(cb) { matchStartCallbacks.push(cb) },
-    onOpponentDisconnect(cb) { disconnectCallbacks.push(cb) },
+    onOpponentEvent(cb) { if (!destroyed) eventCallbacks.push(cb) },
+    onOpponentGarbage(cb) { if (!destroyed) garbageCallbacks.push(cb) },
+    onOpponentGameOver(cb) { if (!destroyed) gameOverCallbacks.push(cb) },
+    onOpponentReady(cb) { if (!destroyed) readyCallbacks.push(cb) },
+    onMatchStart(cb) { if (!destroyed) matchStartCallbacks.push(cb) },
+    onOpponentDisconnect(cb) { if (!destroyed) disconnectCallbacks.push(cb) },
 
     resetCallbacks() {
-      eventCallbacks.length = 0
-      garbageCallbacks.length = 0
-      gameOverCallbacks.length = 0
-      readyCallbacks.length = 0
-      matchStartCallbacks.length = 0
-      disconnectCallbacks.length = 0
+      eventCallbacks = []
+      garbageCallbacks = []
+      gameOverCallbacks = []
+      readyCallbacks = []
+      matchStartCallbacks = []
+      disconnectCallbacks = []
     },
 
     destroy() {
+      destroyed = true
       this.resetCallbacks()
       channel.unsubscribe()
     },
