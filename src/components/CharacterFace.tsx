@@ -19,6 +19,7 @@ interface Props {
 
 export function CharacterFace({ character, expression = 'happy', size = 60, className }: Props) {
   const darker = darken(character.color, 0.15)
+  const lighter = lighten(character.color, 0.15)
 
   return (
     <svg
@@ -38,7 +39,7 @@ export function CharacterFace({ character, expression = 'happy', size = 60, clas
       {/* Highlight */}
       <ellipse cx="25" cy="20" rx="13" ry="7" fill="white" opacity="0.25" />
       {/* On-top features (horns, antenna, leaf, etc.) */}
-      <FrontTraits id={character.id} color={character.color} darker={darker} />
+      <FrontTraits id={character.id} color={character.color} darker={darker} lighter={lighter} />
       {/* Expression */}
       <ExpressionFace expr={expression} charId={character.id} />
     </svg>
@@ -79,7 +80,7 @@ function BehindTraits({ id, color, darker }: { id: number; color: string; darker
   }
 }
 
-function FrontTraits({ id, color, darker }: { id: number; color: string; darker: string }) {
+function FrontTraits({ id, color, darker, lighter }: { id: number; color: string; darker: string; lighter: string }) {
   switch (id) {
     case 0: // Pip — already has ears behind, add rosy inner ear effect
       return null
@@ -120,8 +121,8 @@ function FrontTraits({ id, color, darker }: { id: number; color: string; darker:
     case 5: // Blaze — flame crown
       return (
         <>
-          <path d="M20,8 L22,-1 L26,6 L30,-5 L34,6 L38,-1 L40,8" fill="#f5f0e8" opacity="0.8" />
-          <path d="M22,7 L25,0 L28,6 L30,-2 L32,6 L35,0 L38,7" fill="#f5f0e8" opacity="0.9" />
+          <path d="M20,8 L22,-1 L26,6 L30,-5 L34,6 L38,-1 L40,8" fill={darker} opacity="0.8" />
+          <path d="M22,7 L25,0 L28,6 L30,-2 L32,6 L35,0 L38,7" fill={lighter} opacity="0.9" />
         </>
       )
     default:
@@ -799,4 +800,12 @@ function darken(hex: string, amount: number): string {
   const b = parseInt(hex.slice(5, 7), 16)
   const d = (v: number) => Math.round(v * (1 - amount)).toString(16).padStart(2, '0')
   return `#${d(r)}${d(g)}${d(b)}`
+}
+
+function lighten(hex: string, amount: number): string {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  const l = (v: number) => Math.min(255, Math.round(v + (255 - v) * amount)).toString(16).padStart(2, '0')
+  return `#${l(r)}${l(g)}${l(b)}`
 }

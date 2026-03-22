@@ -288,8 +288,8 @@ function drawFrontTraits(g: Phaser.GameObjects.Graphics, charId: number, palette
       break
     }
     case 5: { // Blaze — flame crown
-      // Outer flame (red-ish)
-      g.fillStyle(0xf5f0e8, 0.8)
+      // Outer flame (darker coral)
+      g.fillStyle(palette.border, 1)
       g.beginPath()
       g.moveTo(px(20), px(8))
       g.lineTo(px(22), px(-1))
@@ -300,8 +300,8 @@ function drawFrontTraits(g: Phaser.GameObjects.Graphics, charId: number, palette
       g.lineTo(px(40), px(8))
       g.closePath()
       g.fillPath()
-      // Inner flame (yellow-ish)
-      g.fillStyle(0xf5f0e8, 0.9)
+      // Inner flame (light coral)
+      g.fillStyle(palette.highlight, 1)
       g.beginPath()
       g.moveTo(px(22), px(7))
       g.lineTo(px(25), px(0))
