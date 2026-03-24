@@ -239,7 +239,7 @@ function drawBehindTraits(g: Phaser.GameObjects.Graphics, charId: number, palett
 
 // ── Character traits (on top / front) ────────────────────────
 
-function drawFrontTraits(g: Phaser.GameObjects.Graphics, charId: number, palette: { fill: number; border: number }): void {
+function drawFrontTraits(g: Phaser.GameObjects.Graphics, charId: number, palette: { fill: number; border: number; highlight: number }): void {
   switch (charId) {
     case 1: { // Lumi — antenna with glowing orb
       g.lineStyle(2 * RENDER_SCALE, palette.border, 1)

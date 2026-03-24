@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 import { CHARACTERS } from '../characters'
 import { CharacterFace } from '../components/CharacterFace'
 import { CPU_RIVALS } from '../lib/cpuRivals'
 import { useMatchStore } from '../stores/matchStore'
+import { initChallengeOnce, setNavigateToGame } from '../services/challengeWidget'
 import type { AIDifficulty } from '../game/ai/PuzzleAI'
 import type { Expression } from '../characters'
 
@@ -53,10 +54,22 @@ export function Landing() {
     navigate('/vs')
   }
 
+  // Init Challenge SDK in background — button is rendered by <challenge-button> custom element
+  useEffect(() => {
+    initChallengeOnce()
+      .then(() => {
+        setNavigateToGame(() => navigate('/challenge'))
+      })
+      .catch(() => {
+        // Challenge not available
+      })
+    return () => setNavigateToGame(null)
+  }, [navigate])
+
   return (
-    <div className="min-h-[calc(100vh-3.5rem)]">
+    <div className="min-h-[calc(100vh-3.5rem)] overflow-x-hidden">
       {/* Hero */}
-      <section className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center px-4 relative">
+      <section className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center px-4 relative overflow-hidden">
         {/* Background glow orbs */}
         <div className="absolute top-1/3 left-1/3 w-56 h-56 rounded-full bg-pink-400/15 blur-[80px] pointer-events-none" />
         <div className="absolute bottom-1/3 right-1/3 w-64 h-64 rounded-full bg-amber-300/10 blur-[90px] pointer-events-none" />
@@ -106,6 +119,8 @@ export function Landing() {
                   <Button size="lg" variant="secondary">Multiplayer</Button>
                 </Link>
               </div>
+              {/* @ts-expect-error challenge-button is a custom element */}
+              <challenge-button variant="play" size="lg" full-width class="w-full max-w-xs"></challenge-button>
             </div>
           ) : (
             <div className="bg-white/[0.06] border border-white/[0.08] rounded-2xl backdrop-blur-sm p-5 max-w-xs w-full mx-auto">
@@ -163,8 +178,8 @@ export function Landing() {
 
           <div className="space-y-20">
             {/* Swap */}
-            <div className="flex flex-col md:flex-row items-center gap-8 md:gap-12">
-              <div className="shrink-0">
+            <div className="flex flex-col md:flex-row items-center gap-6 md:gap-12">
+              <div className="shrink-0 scale-[0.7] sm:scale-[0.85] md:scale-100 origin-center">
                 <div className="flex items-center gap-4">
                   <FaceGrid cells={[
                     [1, 0, 2],
@@ -186,8 +201,8 @@ export function Landing() {
             </div>
 
             {/* Match */}
-            <div className="flex flex-col md:flex-row-reverse items-center gap-8 md:gap-12">
-              <div className="shrink-0">
+            <div className="flex flex-col md:flex-row-reverse items-center gap-6 md:gap-12">
+              <div className="shrink-0 scale-[0.7] sm:scale-[0.85] md:scale-100 origin-center">
                 <div className="flex items-center gap-4">
                   <FaceGrid cells={[
                     [1, 0, 1],
@@ -218,8 +233,8 @@ export function Landing() {
             </div>
 
             {/* Chain */}
-            <div className="flex flex-col md:flex-row items-center gap-8 md:gap-12">
-              <div className="shrink-0">
+            <div className="flex flex-col md:flex-row items-center gap-6 md:gap-12">
+              <div className="shrink-0 scale-[0.7] sm:scale-[0.85] md:scale-100 origin-center">
                 <div className="flex items-start gap-4">
                   {/* Before: gap in the middle, blocks above need to fall */}
                   <div className="relative">
@@ -259,8 +274,8 @@ export function Landing() {
             </div>
 
             {/* Rising */}
-            <div className="flex flex-col md:flex-row-reverse items-center gap-8 md:gap-12">
-              <div className="shrink-0">
+            <div className="flex flex-col md:flex-row-reverse items-center gap-6 md:gap-12">
+              <div className="shrink-0 scale-[0.7] sm:scale-[0.85] md:scale-100 origin-center">
                 <div className="flex items-start gap-4">
                   {/* Before: grid + incoming row below */}
                   <div>
@@ -319,7 +334,28 @@ export function Landing() {
               Controls
             </span>
           </h2>
-          <div className="max-w-4xl mx-auto rounded-2xl bg-white/[0.04] border border-white/[0.06] overflow-hidden">
+          {/* Mobile: simple list of mobile controls only */}
+          <div className="md:hidden space-y-4">
+            <div className="flex items-center gap-4 rounded-2xl bg-white/[0.04] border border-white/[0.06] p-4">
+              <MoveIcon />
+              <div className="flex-1">
+                <div className="font-bold text-base">Move</div>
+                <div className="text-white/40 text-sm">Tap a block to select it</div>
+              </div>
+              <TapIcon />
+            </div>
+            <div className="flex items-center gap-4 rounded-2xl bg-white/[0.04] border border-white/[0.06] p-4">
+              <SwapIcon />
+              <div className="flex-1">
+                <div className="font-bold text-base">Swap</div>
+                <div className="text-white/40 text-sm">Tap the highlighted block</div>
+              </div>
+              <TapSwapIcon />
+            </div>
+          </div>
+
+          {/* Desktop: full table with all controls */}
+          <div className="hidden md:block max-w-4xl mx-auto rounded-2xl bg-white/[0.04] border border-white/[0.06] overflow-hidden">
             {/* Header */}
             <div className="grid grid-cols-[1.2fr_1fr_1fr] text-center text-sm font-bold text-white/30 uppercase tracking-wider border-b border-white/[0.06] py-4 px-8">
               <div>Action</div>
@@ -421,15 +457,18 @@ export function Landing() {
               Meet the Crew
             </span>
           </h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {CHARACTERS.map((c) => {
               const expr: Expression[] = ['sleepy', 'surprised', 'cheeky', 'dreamy', 'excited', 'scared', 'dead']
               return (
-                <div key={c.id} className="p-4 rounded-2xl bg-white/[0.04] border border-white/[0.06] text-center min-w-0">
-                  <CharacterFace character={c} expression="happy" size={72} className="mx-auto mb-3" />
-                  <div className="font-bold text-sm mb-1">{c.name}</div>
-                  <div className="text-white/40 text-xs leading-relaxed mb-3">{c.bio}</div>
-                  <div className="flex justify-center flex-nowrap">
+                <div key={c.id} className="p-4 rounded-2xl bg-white/[0.04] border border-white/[0.06] flex sm:flex-col items-center sm:text-center min-w-0 gap-3 sm:gap-0">
+                  <CharacterFace character={c} expression="happy" size={48} className="shrink-0 sm:hidden" />
+                  <CharacterFace character={c} expression="happy" size={72} className="mx-auto mb-3 hidden sm:block" />
+                  <div className="flex-1 min-w-0 sm:flex-none">
+                    <div className="font-bold text-sm mb-1">{c.name}</div>
+                    <div className="text-white/40 text-xs leading-relaxed">{c.bio}</div>
+                  </div>
+                  <div className="hidden sm:flex justify-center flex-nowrap overflow-hidden mt-3">
                     {expr.map((e) => (
                       <CharacterFace key={e} character={c} expression={e} size={44} className="shrink-0" />
                     ))}
