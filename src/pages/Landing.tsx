@@ -54,7 +54,7 @@ export function Landing() {
     navigate('/vs')
   }
 
-  // Init Challenge SDK in background — button is rendered by <challenge-button> custom element
+  // Init Challenge SDK — button is rendered instantly by <challenge-button> custom element
   useEffect(() => {
     initChallengeOnce()
       .then(() => {
@@ -140,8 +140,8 @@ export function Landing() {
                 <div className="flex-1 h-px bg-white/10" />
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                {(['easy', 'medium', 'hard'] as AIDifficulty[]).map((diff) => {
+              <div className="grid grid-cols-4 gap-2">
+                {(['easy', 'medium', 'hard', 'expert'] as AIDifficulty[]).map((diff) => {
                   const rival = CPU_RIVALS[diff]
                   return (
                     <button
