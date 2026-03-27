@@ -12,10 +12,10 @@ import { ENGINE_FPS, AUTO_RISE_INTERVAL } from '../constants'
 import { useGameStore } from '../../stores/gameStore'
 import { useMatchStore } from '../../stores/matchStore'
 import { spawnClearParticles, spawnLandingDust, spawnGarbageImpact } from '../art/effects'
-import { JKISS31 } from '../engine/jkiss'
 import { PuzzleAI } from '../ai/PuzzleAI'
 import * as Sound from '../audio/SoundManager'
 import { startMusic, stopMusic, playIncomingGarbage, playGarbageLand } from '../audio/SoundManager'
+import { debug } from '../../lib/debug'
 
 // Map engine color names to tile texture indices (same as GameScene)
 const COLOR_TO_INDEX: Record<string, number> = {
@@ -39,8 +39,8 @@ const KAWAII_TINTS_LOCAL = [0xffc0cb, 0xffd1dc, 0xffe4e1, 0xfff0f5, 0xffeaa7, 0x
 
 const SWELL_PEAK = 1.3
 const STAGGER_MS = 35
-const DEATH_COL_DELAY = 60
-const DEATH_ROW_DELAY = 25
+const DEATH_COL_DELAY = 80
+const DEATH_ROW_DELAY = 30
 
 interface BoardState {
   engine: GameEngine
@@ -69,6 +69,8 @@ interface BoardState {
   gradientOverlay: Phaser.GameObjects.Graphics
   shutterTop: Phaser.GameObjects.Graphics
   shutterBottom: Phaser.GameObjects.Graphics
+  shutterGlowTop: Phaser.GameObjects.Graphics
+  shutterGlowBottom: Phaser.GameObjects.Graphics
   lastState: GameState | null
   isGameOver: boolean
   autoRiseCounter: number
@@ -94,8 +96,15 @@ export class VsGameScene extends Phaser.Scene {
   private cursorGraphics!: Phaser.GameObjects.Graphics
   private engineAccum = 0
   private matchOver = false
-  private _wasCountingDown = true
+  private _wasCountingDown = false
   private startAt = 0
+  private _bgWorker: Worker | null = null
+  private _pendingResult: 'win' | 'lose' | 'draw' | null = null
+  private _localDied = false
+  private _remoteDied = false
+  private _localDeathTick = -1
+  private _remoteDeathTick = -1
+  private _graceTicksRemaining = -1  // countdown for draw-detection grace period
   private cpuAI: PuzzleAI | null = null
 
   constructor() {
@@ -107,18 +116,28 @@ export class VsGameScene extends Phaser.Scene {
     this.engineAccum = 0
     this.cursorX = 2
     this.cursorY = 6
-    this._wasCountingDown = true
+    this._wasCountingDown = false
+    this._localDied = false
+    this._remoteDied = false
+    this._localDeathTick = -1
+    this._remoteDeathTick = -1
+    this._graceTicksRemaining = -1
+    this._pendingResult = null
     this.mobile = data?.mobile ?? false
 
     // Pick layout based on mobile flag
     const layouts = this.mobile ? getMobileLayouts() : getDesktopLayouts()
 
     // Create two engines
+    // Pass seeds at construction so initial blocks are generated deterministically
+    const matchState = useMatchStore.getState()
+
     const localEngine = new GameEngine({
       width: GRID_COLS,
       height: GRID_ROWS,
       initialRows: 6,
       scoringSystem: 'puzzleLeague',
+      seed: matchState.localSeed ?? undefined,
     })
 
     const remoteEngine = new GameEngine({
@@ -126,30 +145,8 @@ export class VsGameScene extends Phaser.Scene {
       height: GRID_ROWS,
       initialRows: 6,
       scoringSystem: 'puzzleLeague',
+      seed: matchState.remoteSeed ?? undefined,
     })
-
-    // Apply seeds from matchStore if available
-    const matchState = useMatchStore.getState()
-    if (matchState.localSeed) {
-      localEngine.invalidateCache()
-      const state = JSON.parse((localEngine as any).initialStateJSON)
-      const rng = new JKISS31()
-      rng.x = matchState.localSeed
-      rng.scramble()
-      state.RNG = rng.serialize()
-      ;(localEngine as any).initialStateJSON = JSON.stringify(state)
-      localEngine.invalidateCache()
-    }
-    if (matchState.remoteSeed) {
-      remoteEngine.invalidateCache()
-      const state = JSON.parse((remoteEngine as any).initialStateJSON)
-      const rng = new JKISS31()
-      rng.x = matchState.remoteSeed
-      rng.scramble()
-      state.RNG = rng.serialize()
-      ;(remoteEngine as any).initialStateJSON = JSON.stringify(state)
-      remoteEngine.invalidateCache()
-    }
 
     this.local = this.createBoard(localEngine, layouts.local, 'local')
     this.remote = this.createBoard(remoteEngine, layouts.remote, 'remote')
@@ -172,16 +169,36 @@ export class VsGameScene extends Phaser.Scene {
 
     // Input
     this.input.on('pointerdown', this.handlePointer, this)
-    this.input.keyboard?.on('keydown-LEFT', () => { if (this.cursorX > 0) this.cursorX-- })
-    this.input.keyboard?.on('keydown-RIGHT', () => { if (this.cursorX < GRID_COLS - 2) this.cursorX++ })
-    this.input.keyboard?.on('keydown-UP', () => { if (this.cursorY > 0) this.cursorY-- })
-    this.input.keyboard?.on('keydown-DOWN', () => { if (this.cursorY < GRID_ROWS - 1) this.cursorY++ })
-    this.input.keyboard?.on('keydown-SPACE', () => this.doSwap())
+    this.input.keyboard?.on('keydown-LEFT', (e: KeyboardEvent) => { e.preventDefault(); if (this.cursorX > 0) this.cursorX-- })
+    this.input.keyboard?.on('keydown-RIGHT', (e: KeyboardEvent) => { e.preventDefault(); if (this.cursorX < GRID_COLS - 2) this.cursorX++ })
+    this.input.keyboard?.on('keydown-UP', (e: KeyboardEvent) => { e.preventDefault(); if (this.cursorY > 0) this.cursorY-- })
+    this.input.keyboard?.on('keydown-DOWN', (e: KeyboardEvent) => { e.preventDefault(); if (this.cursorY < GRID_ROWS - 1) this.cursorY++ })
+    this.input.keyboard?.on('keydown-SPACE', (e: KeyboardEvent) => { e.preventDefault(); this.doSwap() })
     this.input.keyboard?.on('keydown-X', () => this.doSwap())
     this.input.keyboard?.on('keydown-Z', () => this.doAddRow())
 
+    // Web Worker ticker — keeps engine running at ENGINE_FPS even when tab is hidden
+    const workerCode = `setInterval(()=>postMessage(0),${Math.round(1000 / ENGINE_FPS)})`
+    const blob = new Blob([workerCode], { type: 'application/javascript' })
+    this._bgWorker = new Worker(URL.createObjectURL(blob))
+    let lastWorkerTick = performance.now()
+    this._bgWorker.onmessage = () => {
+      if (!document.hidden) {
+        lastWorkerTick = performance.now()
+        return
+      }
+      const now = performance.now()
+      const dt = now - lastWorkerTick
+      lastWorkerTick = now
+      this.update(now, dt)
+    }
+
     this.events.on('shutdown', () => {
       stopMusic()
+      if (this._bgWorker) {
+        this._bgWorker.terminate()
+        this._bgWorker = null
+      }
       // Clean up engine listeners to prevent accumulation on rematch
       this.local.engine.removeAllListeners()
       this.remote.engine.removeAllListeners()
@@ -235,8 +252,9 @@ export class VsGameScene extends Phaser.Scene {
 
     if (this._wasCountingDown && !countingDown) {
       startMusic()
+      this._wasCountingDown = false
     }
-    this._wasCountingDown = countingDown
+    if (countingDown) this._wasCountingDown = true
 
     if (!countingDown && Date.now() >= this.startAt) {
       this.engineAccum += delta
@@ -246,8 +264,12 @@ export class VsGameScene extends Phaser.Scene {
         this.engineAccum -= msPerTick
         if (this.matchOver) break
 
-        this.tickBoard(this.local)
-        this.tickBoard(this.remote)
+        // During grace period, only tick boards that haven't died yet
+        if (!this.local.isGameOver) this.tickBoard(this.local)
+        if (!this.remote.isGameOver) this.tickBoard(this.remote)
+
+        // Count down draw-detection grace period
+        this._tickGracePeriod()
 
         // CPU AI drives the remote board
         if (this.cpuAI && !this.remote.isGameOver && this.remote.engineStepCount >= this.cpuAI.warmupTicks) {
@@ -413,6 +435,10 @@ export class VsGameScene extends Phaser.Scene {
     shutterTop.setDepth(16 + depthOffset)
     const shutterBottom = this.add.graphics()
     shutterBottom.setDepth(16 + depthOffset)
+    const shutterGlowTop = this.add.graphics()
+    shutterGlowTop.setDepth(17 + depthOffset)
+    const shutterGlowBottom = this.add.graphics()
+    shutterGlowBottom.setDepth(17 + depthOffset)
 
     // Preview sprites (next row) — hidden on mobile remote board
     const previewSprites: Phaser.GameObjects.Sprite[] = []
@@ -492,6 +518,8 @@ export class VsGameScene extends Phaser.Scene {
       gradientOverlay,
       shutterTop,
       shutterBottom,
+      shutterGlowTop,
+      shutterGlowBottom,
       lastState: null,
       isGameOver: false,
       autoRiseCounter: 0,
@@ -631,6 +659,7 @@ export class VsGameScene extends Phaser.Scene {
     })
 
     board.engine.on('gameOver', () => {
+      debug('Game', 'local engine gameOver fired')
       this.handleBoardGameOver(board, 'local')
     })
   }
@@ -688,44 +717,147 @@ export class VsGameScene extends Phaser.Scene {
     })
 
     board.engine.on('gameOver', () => {
+      // In networked mode, only trust the opponent's own game_over broadcast.
+      // The local simulation of the remote board can desync and trigger a
+      // false game-over (e.g. garbage timing differences). Skip it.
+      if (isNetworked) {
+        debug('Game', 'remote engine gameOver IGNORED (networked — waiting for opponent broadcast)')
+        return
+      }
       this.handleBoardGameOver(board, 'remote')
     })
   }
 
+  // Grace period in engine ticks — after first death, keep running to detect simultaneous death
+  private static readonly DRAW_GRACE_TICKS = 15 // ~1s at 15fps — enough for network round-trip
+
   private handleBoardGameOver(board: BoardState, which: 'local' | 'remote'): void {
-    if (this.matchOver) return
+    const now = Date.now()
+    debug('Game', `handleBoardGameOver(${which}) at ${now}ms — localTick=${this.local.engine.time}, remoteTick=${this.remote.engine.time}, localDied=${this._localDied}, remoteDied=${this._remoteDied}, matchOver=${this.matchOver}`)
+
+    // Mark which board died (idempotent)
+    const alreadyDied = which === 'local' ? this._localDied : this._remoteDied
+    if (alreadyDied) {
+      debug('Game', `handleBoardGameOver(${which}) SKIPPED — already died`)
+      return
+    }
+
     board.savedFinalScore = board.lastState?.score ?? 0
     board.isGameOver = true
-    this.matchOver = true
+    const deathTick = board.engine.time
 
-    // Freeze scores in stores before the engine resets them
-    if (which === 'remote') {
-      useMatchStore.getState().setOpponentScore(board.savedFinalScore)
-    } else {
+    if (which === 'local') {
+      this._localDied = true
+      this._localDeathTick = deathTick
       useGameStore.getState().setScore(board.savedFinalScore)
-    }
-
-    Sound.playBubble()
-    // Reduce shake intensity on mobile when remote board dies
-    const shakeIntensity = (this.mobile && which === 'remote') ? 0.008 : 0.015
-    this.cameras.main.shake(400, shakeIntensity)
-
-    // Run death cascade on the losing board
-    this.doCascadingDeath(board)
-
-    // Determine result
-    const iLost = which === 'local'
-    const result = iLost ? 'lose' : 'win'
-
-    // Broadcast game over if we lost
-    if (iLost) {
+      // Broadcast to opponent
+      debug('Game', 'Broadcasting game_over to opponent')
       const channel = useMatchStore.getState().channel
       if (channel) channel.sendGameOver()
+    } else {
+      this._remoteDied = true
+      this._remoteDeathTick = deathTick
+      useMatchStore.getState().setOpponentScore(board.savedFinalScore)
     }
 
-    // Show result after brief delay for cascade
-    this.time.delayedCall(2000, () => {
-      stopMusic()
+    debug('Game', `${which} board died — score=${board.savedFinalScore}, tick=${deathTick}, localDied=${this._localDied}, remoteDied=${this._remoteDied}`)
+
+    if (this._localDied && this._remoteDied) {
+      // Both dead — upgrade to draw (even if finalize already ran)
+      debug('Game', `Both boards dead — DRAW (localTick=${this._localDeathTick}, remoteTick=${this._remoteDeathTick}, matchOver=${this.matchOver})`)
+      this._pendingResult = 'draw'
+      this._graceTicksRemaining = -1
+      // Ensure both scores are frozen
+      useMatchStore.getState().setOpponentScore(this.remote.savedFinalScore || this.remote.lastState?.score || 0)
+      useGameStore.getState().setScore(this.local.savedFinalScore || this.local.lastState?.score || 0)
+      if (!this.matchOver) {
+        this._finalizeMatchResult()
+      }
+      return
+    } else if (this._graceTicksRemaining < 0) {
+      // First death — start grace period to allow the other board to also die
+      debug('Game', `First death (${which}) — starting ${VsGameScene.DRAW_GRACE_TICKS}-tick grace period`)
+      this._graceTicksRemaining = VsGameScene.DRAW_GRACE_TICKS
+      // Grace period is counted down in the update() loop via _tickGracePeriod()
+    }
+  }
+
+  /** Called from update() each engine tick during the grace period */
+  private _tickGracePeriod(): void {
+    if (this._graceTicksRemaining < 0) return
+    this._graceTicksRemaining--
+
+    if (this._graceTicksRemaining <= 0) {
+      debug('Game', `Grace period expired — localDied=${this._localDied}, remoteDied=${this._remoteDied}`)
+      this._finalizeMatchResult()
+    }
+  }
+
+  /** Determine winner and start end-of-match animations */
+  private _finalizeMatchResult(): void {
+    if (this.matchOver) return
+    this.matchOver = true
+    this._graceTicksRemaining = -1
+
+    const bothDied = this._localDied && this._remoteDied
+    let result: 'win' | 'lose' | 'draw'
+
+    if (bothDied) {
+      // Both died within the grace window — draw
+      result = 'draw'
+    } else if (this._localDied) {
+      result = 'lose'
+    } else {
+      result = 'win'
+    }
+    this._pendingResult = result
+
+    debug('Game', `*** RESULT: ${result} *** localDied=${this._localDied}(tick ${this._localDeathTick}), remoteDied=${this._remoteDied}(tick ${this._remoteDeathTick}), localScore=${this.local.savedFinalScore}, remoteScore=${this.remote.savedFinalScore}`)
+
+    stopMusic()
+    Sound.playBubble()
+    this.cameras.main.shake(600, 0.02)
+
+    // Close both boards with neutral animation
+    const otherBoard = this._localDied && !this._remoteDied ? this.remote
+      : this._remoteDied && !this._localDied ? this.local
+      : null // both died
+
+    if (bothDied) {
+      // Both boards died — cascade both
+      this.remote.isGameOver = true
+      this.local.isGameOver = true
+      this.remote.savedFinalScore = this.remote.savedFinalScore || this.remote.lastState?.score || 0
+      this.local.savedFinalScore = this.local.savedFinalScore || this.local.lastState?.score || 0
+      const maxDelay = this.doCascadingDeath(this.local, 'Finish!')
+      this.doCascadingDeath(this.remote, 'Finish!')
+      this._startEndSequence(maxDelay)
+    } else {
+      // One board died — cascade the loser, close the winner
+      const losingBoard = this._localDied ? this.local : this.remote
+      const winningBoard = this._localDied ? this.remote : this.local
+      winningBoard.isGameOver = true
+      const maxDelay = this.doCascadingDeath(losingBoard, 'Finish!')
+      this.doWinnerClose(winningBoard)
+      this._startEndSequence(maxDelay)
+    }
+  }
+
+  /** Sound sequence + delayed result display */
+  private _startEndSequence(maxDelay: number): void {
+    const cascadeEnd = maxDelay + 300
+
+    this.time.delayedCall(cascadeEnd, () => {
+      Sound.playTrailer()
+      this.cameras.main.shake(200, 0.01)
+    })
+
+    this.time.delayedCall(cascadeEnd + 2400, () => {
+      Sound.playBoom()
+      this.cameras.main.shake(150, 0.015)
+    })
+
+    this.time.delayedCall(cascadeEnd + 3500, () => {
       this.cursorGraphics.clear()
 
       const store = useGameStore.getState()
@@ -734,7 +866,13 @@ export class VsGameScene extends Phaser.Scene {
       store.setFinalScore(this.local.savedFinalScore || this.local.lastState?.score || 0)
       store.setBlocksCleared(this.local.totalBlocksCleared)
 
-      useMatchStore.getState().setFinished(result)
+      if (this._pendingResult === 'draw') {
+        useMatchStore.getState().setOpponentScore(this.remote.savedFinalScore || this.remote.lastState?.score || 0)
+        useGameStore.getState().setScore(this.local.savedFinalScore || this.local.lastState?.score || 0)
+      }
+
+      debug('Game', `*** FINAL RESULT sent to store: ${this._pendingResult} *** localDied=${this._localDied}, remoteDied=${this._remoteDied}`)
+      useMatchStore.getState().setFinished(this._pendingResult!)
     })
   }
 
@@ -1328,7 +1466,7 @@ export class VsGameScene extends Phaser.Scene {
     spawnClearParticles(this, x, y, colorIndex, 8)
   }
 
-  private doCascadingDeath(board: BoardState): void {
+  private doCascadingDeath(board: BoardState, label: string): number {
     const { cellSize } = board
     const blocksByCol: { col: number; row: number; index: number }[] = []
     if (board.lastState) {
@@ -1362,9 +1500,15 @@ export class VsGameScene extends Phaser.Scene {
         scaleY: 0,
         alpha: 0,
         angle: (Math.random() - 0.5) * 30,
-        duration: 250,
+        duration: 300,
         delay,
         ease: 'Back.easeIn',
+        onStart: () => {
+          // Spawn particles per dying block (matching solo)
+          const block = board.lastState?.blocks[entry.index]
+          const colorIndex = block?.color ? (COLOR_TO_INDEX[block.color] ?? 0) : 0
+          spawnClearParticles(this, sprite.x, sprite.y, colorIndex, 4)
+        },
         onComplete: () => sprite.setVisible(false),
       })
     }
@@ -1386,14 +1530,14 @@ export class VsGameScene extends Phaser.Scene {
       this.tweens.add({
         targets: [board.gridLines, board.gridGlow, board.dangerOverlay, board.gridBg, board.gradientOverlay, board.garbageBorderGfx, board.garbageWarningGfx, ...board.sparkles],
         alpha: 0,
-        duration: 300,
+        duration: 400,
         ease: 'Power2',
       })
     })
 
-    // Shutters
+    // Shutters with glow lines (matching solo)
     const gridHeight = GRID_ROWS * cellSize
-    const shutterDelay = maxDelay + 150
+    const shutterDelay = maxDelay + 200
     const halfH = (gridHeight + 8) / 2
     this.time.delayedCall(shutterDelay, () => {
       const sx = board.originX - 4
@@ -1404,7 +1548,7 @@ export class VsGameScene extends Phaser.Scene {
       this.tweens.add({
         targets: proxy,
         h: halfH,
-        duration: 500,
+        duration: 600,
         ease: 'Power3',
         onUpdate: () => {
           board.shutterTop.clear()
@@ -1413,6 +1557,200 @@ export class VsGameScene extends Phaser.Scene {
           board.shutterBottom.clear()
           board.shutterBottom.fillStyle(0x0a0a12, 0.92)
           board.shutterBottom.fillRoundedRect(sx, sy + sh - proxy.h, sw, proxy.h, { tl: 0, tr: 0, bl: 14, br: 14 })
+
+          // Glowing pink edge lines on closing edges
+          board.shutterGlowTop.clear()
+          board.shutterGlowTop.lineStyle(2, 0xfd79a8, 0.6)
+          board.shutterGlowTop.beginPath()
+          board.shutterGlowTop.moveTo(sx, sy + proxy.h)
+          board.shutterGlowTop.lineTo(sx + sw, sy + proxy.h)
+          board.shutterGlowTop.strokePath()
+
+          board.shutterGlowBottom.clear()
+          board.shutterGlowBottom.lineStyle(2, 0xfd79a8, 0.6)
+          board.shutterGlowBottom.beginPath()
+          board.shutterGlowBottom.moveTo(sx, sy + sh - proxy.h)
+          board.shutterGlowBottom.lineTo(sx + sw, sy + sh - proxy.h)
+          board.shutterGlowBottom.strokePath()
+        },
+        onComplete: () => {
+          board.shutterGlowTop.clear()
+          board.shutterGlowBottom.clear()
+        },
+      })
+    })
+
+    // Text overlay on the board (pops in once shutters ~80% closed)
+    const textLabel = label
+    const textColor = '#aaaaaa'
+    const shadowColor = '#888888'
+    const fontSize = this.mobile ? '28px' : '36px'
+    this.time.delayedCall(shutterDelay + 480, () => {
+      const cx = board.originX + (GRID_COLS * cellSize) / 2
+      const cy = board.originY + (GRID_ROWS * cellSize) / 2
+      const text = this.add.text(cx, cy, textLabel, {
+        fontFamily: 'Nunito, sans-serif',
+        fontSize,
+        fontStyle: '900',
+        color: textColor,
+        shadow: { offsetX: 0, offsetY: 0, color: shadowColor, blur: 16, fill: true, stroke: true },
+      })
+      text.setOrigin(0.5, 0.5)
+      text.setDepth(17 + board.depthOffset)
+      text.setScale(0)
+      this.tweens.add({
+        targets: text,
+        scaleX: 1,
+        scaleY: 1,
+        duration: 250,
+        ease: 'Back.easeOut',
+        onUpdate: (_tween, target) => {
+          const progress = _tween.progress
+          const scale = progress < 0.7
+            ? progress / 0.7 * 1.15
+            : 1.15 - (progress - 0.7) / 0.3 * 0.15
+          target.setScale(scale)
+        },
+      })
+    })
+
+    // Rotating tile faces around the text
+    this.time.delayedCall(shutterDelay + 550, () => {
+      const cx = board.originX + (GRID_COLS * cellSize) / 2
+      const cy = board.originY + (GRID_ROWS * cellSize) / 2
+      const spread = this.mobile ? 0.6 : 1
+      const positions = [
+        { x: cx - 90 * spread, y: cy - 40 * spread },
+        { x: cx + 85 * spread, y: cy - 35 * spread },
+        { x: cx - 70 * spread, y: cy + 40 * spread },
+        { x: cx + 75 * spread, y: cy + 45 * spread },
+        { x: cx, y: cy - 55 * spread },
+      ]
+      for (let i = 0; i < 5; i++) {
+        const texKey = `tile_${i % 6}`
+        if (!this.textures.exists(texKey)) continue
+        const face = this.add.sprite(positions[i].x, positions[i].y, texKey)
+        const size = (this.mobile ? 24 : 36) + Math.random() * 8
+        face.setDisplaySize(size, size)
+        face.setAlpha(0)
+        face.setScale(0)
+        face.setDepth(17 + board.depthOffset)
+
+        this.tweens.add({
+          targets: face,
+          scaleX: size / face.width,
+          scaleY: size / face.height,
+          alpha: 0.6 + Math.random() * 0.2,
+          duration: 200,
+          delay: i * 60,
+          ease: 'Back.easeOut',
+        })
+        this.tweens.add({
+          targets: face,
+          angle: (Math.random() > 0.5 ? 360 : -360),
+          duration: 4000 + Math.random() * 3000,
+          repeat: -1,
+          ease: 'Linear',
+        })
+      }
+    })
+
+    return maxDelay
+  }
+
+  /** Quiet close for the other board — blocks fade, shutters close, show Finish! */
+  private doWinnerClose(board: BoardState): void {
+    const { cellSize } = board
+
+    // Fade all blocks gently (no particles, no explosive animation)
+    if (board.lastState) {
+      for (let i = 0; i < board.lastState.blocks.length; i++) {
+        const sprite = board.sprites[i]
+        if (!sprite?.visible) continue
+        this.showGlow(board, i, 0, 0, 0, false)
+        this.tweens.add({
+          targets: sprite,
+          alpha: 0,
+          duration: 600,
+          delay: 200,
+          ease: 'Power2',
+          onComplete: () => sprite.setVisible(false),
+        })
+      }
+    }
+
+    // Fade preview sprites
+    for (const ps of board.previewSprites) {
+      this.tweens.add({ targets: ps, alpha: 0, duration: 300, ease: 'Power2' })
+    }
+
+    board.garbageBorderGfx.clear()
+    board.prevSlabYs.clear()
+    board.slabLandTimes.clear()
+    board.slabVisualYs.clear()
+
+    // Fade grid elements
+    this.tweens.add({
+      targets: [board.gridLines, board.gridGlow, board.dangerOverlay, board.gridBg, board.gradientOverlay, board.garbageBorderGfx, board.garbageWarningGfx, ...board.sparkles],
+      alpha: 0,
+      duration: 600,
+      delay: 400,
+      ease: 'Power2',
+    })
+
+    // Shutters close (slightly delayed, no glow lines)
+    const gridHeight = GRID_ROWS * cellSize
+    const shutterDelay = 800
+    const halfH = (gridHeight + 8) / 2
+    this.time.delayedCall(shutterDelay, () => {
+      const sx = board.originX - 4
+      const sy = board.originY - 4
+      const sw = GRID_COLS * cellSize + 8
+      const sh = gridHeight + 8
+      const proxy = { h: 0 }
+      this.tweens.add({
+        targets: proxy,
+        h: halfH,
+        duration: 600,
+        ease: 'Power3',
+        onUpdate: () => {
+          board.shutterTop.clear()
+          board.shutterTop.fillStyle(0x0a0a12, 0.92)
+          board.shutterTop.fillRoundedRect(sx, sy, sw, proxy.h, { tl: 14, tr: 14, bl: 0, br: 0 })
+          board.shutterBottom.clear()
+          board.shutterBottom.fillStyle(0x0a0a12, 0.92)
+          board.shutterBottom.fillRoundedRect(sx, sy + sh - proxy.h, sw, proxy.h, { tl: 0, tr: 0, bl: 14, br: 14 })
+        },
+      })
+    })
+
+    // Finish! text (matches the dying board's text)
+    const fontSize = this.mobile ? '28px' : '36px'
+    this.time.delayedCall(shutterDelay + 480, () => {
+      const cx = board.originX + (GRID_COLS * cellSize) / 2
+      const cy = board.originY + (GRID_ROWS * cellSize) / 2
+      const text = this.add.text(cx, cy, 'Finish!', {
+        fontFamily: 'Nunito, sans-serif',
+        fontSize,
+        fontStyle: '900',
+        color: '#aaaaaa',
+        shadow: { offsetX: 0, offsetY: 0, color: '#888888', blur: 16, fill: true, stroke: true },
+      })
+      text.setOrigin(0.5, 0.5)
+      text.setDepth(17 + board.depthOffset)
+      text.setScale(0)
+      this.tweens.add({
+        targets: text,
+        scaleX: 1,
+        scaleY: 1,
+        duration: 250,
+        ease: 'Back.easeOut',
+        onUpdate: (_tween, target) => {
+          const progress = _tween.progress
+          const scale = progress < 0.7
+            ? progress / 0.7 * 1.15
+            : 1.15 - (progress - 0.7) / 0.3 * 0.15
+          target.setScale(scale)
         },
       })
     })
@@ -1508,6 +1846,8 @@ export class VsGameScene extends Phaser.Scene {
 
   /** Called externally when opponent sends garbage to us */
   applyIncomingGarbage(slab: { x: number; width: number; height: number }): void {
+    debug('Game', `applyIncomingGarbage — localGameOver=${this.local.isGameOver}`, slab)
+    if (this.local.isGameOver) return
     this.local.engine.addEvent({
       time: this.local.engine.time,
       type: 'addGarbage',
@@ -1518,7 +1858,8 @@ export class VsGameScene extends Phaser.Scene {
 
   /** Called externally when opponent reports game over */
   applyOpponentGameOver(): void {
-    if (this.matchOver) return
+    debug('Game', `applyOpponentGameOver — matchOver=${this.matchOver}, remote.isGameOver=${this.remote.isGameOver}`)
+    // Allow through even if matchOver is true — handleBoardGameOver will upgrade to draw
     this.handleBoardGameOver(this.remote, 'remote')
   }
 }

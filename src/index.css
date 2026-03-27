@@ -4,6 +4,10 @@
   --font-sans: 'Nunito', sans-serif;
 }
 
+html, body {
+  overflow-x: hidden;
+}
+
 /* Hero floating faces */
 @keyframes hero-float {
   0%, 100% { transform: translateY(0) rotate(0deg); }

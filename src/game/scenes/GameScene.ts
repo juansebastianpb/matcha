@@ -59,7 +59,8 @@ export class GameScene extends Phaser.Scene {
   private totalBlocksCleared = 0
   private savedFinalScore = 0
   private engineStepCount = 0
-  private _wasCountingDown = true
+  private _wasCountingDown = false
+  private _bgWorker: Worker | null = null
 
   // Track per-slot state for detecting transitions
   private prevFloatTimers: number[] = []
@@ -338,25 +339,51 @@ export class GameScene extends Phaser.Scene {
     this.input.on('pointerdown', this.handlePointer, this)
 
     // Input: keyboard
-    this.input.keyboard?.on('keydown-LEFT', () => {
+    this.input.keyboard?.on('keydown-LEFT', (e: KeyboardEvent) => {
+      e.preventDefault()
       if (this.cursorX > 0) this.cursorX--
     })
-    this.input.keyboard?.on('keydown-RIGHT', () => {
+    this.input.keyboard?.on('keydown-RIGHT', (e: KeyboardEvent) => {
+      e.preventDefault()
       if (this.cursorX < GRID_COLS - 2) this.cursorX++
     })
-    this.input.keyboard?.on('keydown-UP', () => {
+    this.input.keyboard?.on('keydown-UP', (e: KeyboardEvent) => {
+      e.preventDefault()
       if (this.cursorY > 0) this.cursorY--
     })
-    this.input.keyboard?.on('keydown-DOWN', () => {
+    this.input.keyboard?.on('keydown-DOWN', (e: KeyboardEvent) => {
+      e.preventDefault()
       if (this.cursorY < GRID_ROWS - 1) this.cursorY++
     })
-    this.input.keyboard?.on('keydown-SPACE', () => this.doSwap())
+    this.input.keyboard?.on('keydown-SPACE', (e: KeyboardEvent) => { e.preventDefault(); this.doSwap() })
     this.input.keyboard?.on('keydown-X', () => this.doSwap())
     this.input.keyboard?.on('keydown-Z', () => this.doAddRow())
+
+    // Web Worker ticker — keeps engine running at ENGINE_FPS even when tab is hidden
+    // (Web Workers are exempt from browser background-tab throttling)
+    const workerCode = `setInterval(()=>postMessage(0),${Math.round(1000 / ENGINE_FPS)})`
+    const blob = new Blob([workerCode], { type: 'application/javascript' })
+    this._bgWorker = new Worker(URL.createObjectURL(blob))
+    let lastWorkerTick = performance.now()
+    this._bgWorker.onmessage = () => {
+      // Only drive the engine when tab is hidden — Phaser handles it when visible
+      if (!document.hidden) {
+        lastWorkerTick = performance.now()
+        return
+      }
+      const now = performance.now()
+      const dt = now - lastWorkerTick
+      lastWorkerTick = now
+      this.update(now, dt)
+    }
 
     // Clean up on shutdown (e.g. game destroyed on navigation)
     this.events.on('shutdown', () => {
       stopMusic()
+      if (this._bgWorker) {
+        this._bgWorker.terminate()
+        this._bgWorker = null
+      }
       this.engine.removeAllListeners()
       this.time.removeAllEvents()
       this.input.removeAllListeners()
@@ -378,11 +405,13 @@ export class GameScene extends Phaser.Scene {
 
     const countingDown = useGameStore.getState().countdown !== null
 
-    // When countdown just finished, start music
+    // Start music only when countdown finishes (was counting → no longer counting)
+    // _wasCountingDown starts false; set to true only after seeing an active countdown
     if (this._wasCountingDown && !countingDown) {
       startMusic()
+      this._wasCountingDown = false
     }
-    this._wasCountingDown = countingDown
+    if (countingDown) this._wasCountingDown = true
 
     if (!countingDown) {
       // Fixed timestep engine tick

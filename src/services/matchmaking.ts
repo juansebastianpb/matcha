@@ -115,7 +115,7 @@ export async function searchMatch(
 export async function joinRoom(code: string): Promise<RoomHandle> {
   if (!supabase) throw new Error('Supabase not configured')
 
-  const roomCode = code.toUpperCase().trim()
+  const roomCode = code.trim()
   const channel = supabase.channel(`match:${roomCode}`, {
     config: { broadcast: { self: false } },
   })

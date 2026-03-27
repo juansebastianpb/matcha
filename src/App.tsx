@@ -8,6 +8,7 @@ import { HowToPlay } from './pages/HowToPlay'
 import { Profile } from './pages/Profile'
 import { Lobby } from './pages/Lobby'
 import { Vs } from './pages/Vs'
+import { ChallengePage } from './pages/ChallengePage'
 function AppRoutes() {
   return (
     <Routes>
@@ -16,6 +17,7 @@ function AppRoutes() {
         <Route path="/play" element={<ErrorBoundary><Play /></ErrorBoundary>} />
         <Route path="/lobby" element={<ErrorBoundary fallbackMessage="Matchmaking error"><Lobby /></ErrorBoundary>} />
         <Route path="/vs" element={<ErrorBoundary fallbackMessage="Game error"><Vs /></ErrorBoundary>} />
+        <Route path="/challenge" element={<ErrorBoundary fallbackMessage="Challenge error"><ChallengePage /></ErrorBoundary>} />
         <Route path="/leaderboard" element={<ErrorBoundary><Leaderboard /></ErrorBoundary>} />
         <Route path="/how-to-play" element={<HowToPlay />} />
         <Route path="/profile" element={<ErrorBoundary><Profile /></ErrorBoundary>} />

@@ -46,6 +46,26 @@ export class JKISS31 {
     this.c = (Math.random() < 0.5 ? 1 : 0) & 1
   }
 
+  /** Deterministically seed all RNG state from a single integer */
+  seedFrom(seed: number): void {
+    // Use splitmix32-style mixing to derive all state from one seed
+    let s = seed | 0
+    const mix = (): number => {
+      s = (s + 0x9e3779b9) | 0
+      let t = s ^ (s >>> 16)
+      t = Math.imul(t, 0x21f0aaad)
+      t = t ^ (t >>> 15)
+      t = Math.imul(t, 0x735a2d97)
+      t = t ^ (t >>> 15)
+      return t & INT32_MASK_FULL
+    }
+    this.x = mix()
+    this.y = mix() || 1 // y must be nonzero for JKISS
+    this.z = mix()
+    this.w = mix()
+    this.c = mix() & 1
+  }
+
   step(): number {
     this.y ^= this.y << 5
     this.y ^= this.y >> 7

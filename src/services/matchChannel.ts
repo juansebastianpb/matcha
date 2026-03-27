@@ -1,4 +1,5 @@
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import { debug } from '../lib/debug'
 
 export interface GameEventPayload {
   type: string
@@ -56,26 +57,31 @@ export function createMatchChannel(channel: RealtimeChannel): MatchChannel {
 
   channel.on('broadcast', { event: 'garbage' }, ({ payload }) => {
     if (destroyed) return
+    debug('MC', '← recv garbage', payload)
     garbageCallbacks.forEach(cb => cb(payload as GarbagePayload))
   })
 
   channel.on('broadcast', { event: 'game_over' }, () => {
     if (destroyed) return
+    debug('MC', '← recv game_over')
     gameOverCallbacks.forEach(cb => cb())
   })
 
   channel.on('broadcast', { event: 'ready' }, () => {
     if (destroyed) return
+    debug('MC', '← recv ready')
     readyCallbacks.forEach(cb => cb())
   })
 
   channel.on('broadcast', { event: 'match_start' }, ({ payload }) => {
     if (destroyed) return
+    debug('MC', '← recv match_start', payload)
     matchStartCallbacks.forEach(cb => cb(payload as MatchStartPayload))
   })
 
   channel.on('broadcast', { event: 'disconnect' }, () => {
     if (destroyed) return
+    debug('MC', '← recv disconnect')
     disconnectCallbacks.forEach(cb => cb())
   })
 
@@ -87,11 +93,13 @@ export function createMatchChannel(channel: RealtimeChannel): MatchChannel {
 
     sendGarbage(slab: GarbagePayload) {
       if (destroyed) return
+      debug('MC', '→ send garbage', slab)
       channel.send({ type: 'broadcast', event: 'garbage', payload: slab })
     },
 
     sendGameOver() {
       if (destroyed) return
+      debug('MC', '→ send game_over')
       channel.send({ type: 'broadcast', event: 'game_over', payload: {} })
     },
 

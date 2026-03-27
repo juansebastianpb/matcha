@@ -6,7 +6,8 @@ export interface CpuRival {
 }
 
 export const CPU_RIVALS: Record<AIDifficulty, CpuRival> = {
-  easy:   { name: 'Pip',  characterIndex: 0 },
-  medium: { name: 'Koko', characterIndex: 3 },
-  hard:   { name: 'Nyx',  characterIndex: 4 },
+  easy:   { name: 'Pip',   characterIndex: 0 },
+  medium: { name: 'Koko',  characterIndex: 3 },
+  hard:   { name: 'Blaze', characterIndex: 5 },
+  expert: { name: 'Nyx',   characterIndex: 4 },
 }

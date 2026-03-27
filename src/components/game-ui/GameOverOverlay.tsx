@@ -57,52 +57,54 @@ export function GameOverOverlay({ onPlayAgain }: GameOverOverlayProps) {
 
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-xl z-20">
-      <div className="text-center p-4 sm:p-6 gameover-slide-up">
+      <div className="text-center p-3 sm:p-6 gameover-slide-up max-w-sm w-full">
         {/* Title with flanking character faces */}
-        <div className="flex items-center justify-center gap-3 mb-1">
+        <div className="flex items-center justify-center gap-2 sm:gap-3 mb-1">
           <div className="gameover-face-left">
             <div className="gameover-face-spin">
-              <CharacterFace character={charA} expression="dead" size={52} />
+              <CharacterFace character={charA} expression="dead" size={36} className="sm:hidden" />
+              <CharacterFace character={charA} expression="dead" size={52} className="hidden sm:block" />
             </div>
           </div>
           <h2
-            className="text-4xl font-black bg-gradient-to-r from-pink-300 via-amber-200 to-yellow-200 bg-clip-text text-transparent"
+            className="text-2xl sm:text-4xl font-black bg-gradient-to-r from-pink-300 via-amber-200 to-yellow-200 bg-clip-text text-transparent"
             style={{ textShadow: '0 0 20px rgba(253,121,168,0.5), 0 0 40px rgba(253,121,168,0.25)' }}
           >
             Game Over!
           </h2>
           <div className="gameover-face-right">
             <div className="gameover-face-spin">
-              <CharacterFace character={charB} expression="dead" size={52} />
+              <CharacterFace character={charB} expression="dead" size={36} className="sm:hidden" />
+              <CharacterFace character={charB} expression="dead" size={52} className="hidden sm:block" />
             </div>
           </div>
         </div>
 
         {isNewBest && (
           <div
-            className="text-yellow-300 font-bold text-sm mb-3 animate-pulse"
+            className="text-yellow-300 font-bold text-xs sm:text-sm mb-2 sm:mb-3 animate-pulse"
             style={{ textShadow: '0 0 12px #FFD700' }}
           >
             New Personal Best!
           </div>
         )}
 
-        <div className="bg-white/8 border border-white/10 rounded-xl p-4 mb-4 space-y-2">
-          <div className="text-4xl font-black bg-gradient-to-r from-yellow-300 to-orange-300 bg-clip-text text-transparent">
+        <div className="bg-white/8 border border-white/10 rounded-xl p-2.5 sm:p-4 mb-3 sm:mb-4 space-y-2">
+          <div className="text-2xl sm:text-4xl font-black bg-gradient-to-r from-yellow-300 to-orange-300 bg-clip-text text-transparent">
             {displayScore.toLocaleString()}
           </div>
 
-          <div className="grid grid-cols-3 gap-3 text-sm mt-3">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 text-xs sm:text-sm mt-2 sm:mt-3">
             <div className="gameover-stat-pop" style={{ animationDelay: '0ms' }}>
               <div className="text-white/40">Cleared</div>
               <div className="font-bold text-white">{blocksCleared}</div>
             </div>
             <div className="gameover-stat-pop" style={{ animationDelay: '100ms' }}>
-              <div className="text-white/40">Best Chain</div>
+              <div className="text-white/40">Chain</div>
               <div className="font-bold text-yellow-300">{maxChain}x</div>
             </div>
             <div className="gameover-stat-pop" style={{ animationDelay: '200ms' }}>
-              <div className="text-white/40">Best Combo</div>
+              <div className="text-white/40">Combo</div>
               <div className="font-bold text-pink-300">{maxCombo}x</div>
             </div>
           </div>

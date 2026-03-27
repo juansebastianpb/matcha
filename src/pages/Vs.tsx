@@ -15,13 +15,39 @@ import { VS_GAME_WIDTH, VS_GAME_HEIGHT, VS_MOBILE_GAME_WIDTH, VS_MOBILE_GAME_HEI
 const isMobile = window.innerWidth < 768
 
 export function Vs() {
+  // Clear stale state from any previous game immediately on mount
+  const didReset = useRef(false)
+  if (!didReset.current) {
+    didReset.current = true
+    useGameStore.getState().reset()
+  }
+
   const [gameKey, setGameKey] = useState(0)
+  const mode = useMatchStore((s) => s.mode)
+  const rematchPending = useRef(false)
 
   const handleRematch = useCallback(() => {
-    useGameStore.getState().reset()
+    const { cpuDifficulty } = useMatchStore.getState()
     useMatchStore.getState().requestRematch()
-    setGameKey((k) => k + 1)
+    if (cpuDifficulty) {
+      // CPU: restart in-place immediately
+      useGameStore.getState().reset()
+      setGameKey((k) => k + 1)
+    } else {
+      // Multiplayer: stay on page, overlay shows "Waiting..."
+      // Game re-mounts when countdown starts (via useEffect below)
+      rematchPending.current = true
+    }
   }, [])
+
+  // Re-mount VsPhaserGame when rematch countdown starts
+  useEffect(() => {
+    if (mode === 'countdown' && rematchPending.current) {
+      rematchPending.current = false
+      useGameStore.getState().reset()
+      setGameKey((k) => k + 1)
+    }
+  }, [mode])
   const [canvasWidth, setCanvasWidth] = useState<number | null>(null)
   const gameContainerRef = useRef<HTMLDivElement>(null)
 

@@ -14,6 +14,7 @@ export function VsGameOverOverlay({ onRematch }: { onRematch?: () => void }) {
   const maxChain = useGameStore((s) => s.maxChain)
   const maxCombo = useGameStore((s) => s.maxCombo)
   const result = useMatchStore((s) => s.result)
+  const matchMode = useMatchStore((s) => s.mode)
   const opponentScore = useMatchStore((s) => s.opponentScore)
   const opponentDisconnected = useMatchStore((s) => s.opponentDisconnected)
   const cpuDifficulty = useMatchStore((s) => s.cpuDifficulty)
@@ -66,92 +67,136 @@ export function VsGameOverOverlay({ onRematch }: { onRematch?: () => void }) {
     navigate('/')
   }, [actionTaken, navigate])
 
-  // Show overlay when game is over AND match result is determined
-  if (!(isGameOver || result)) return null
-  if (!result) return null
+  // Show overlay when game is over AND match result is determined,
+  // OR when waiting for opponent rematch (ready_check)
+  const isWaitingForRematch = matchMode === 'ready_check'
+  if (!isWaitingForRematch) {
+    if (!(isGameOver || result)) return null
+    if (!result) return null
+  }
+
+  // Waiting for opponent to click Rematch
+  if (isWaitingForRematch) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-xl z-20 pointer-events-auto">
+        <div className="text-center p-3 sm:p-6 max-w-md w-full">
+          {opponentDisconnected ? (
+            <>
+              <div className="text-white/50 text-sm mb-4">Opponent left</div>
+              <Button onClick={handleMenu} variant="ghost" size="lg">
+                Back to Menu
+              </Button>
+            </>
+          ) : (
+            <>
+              <div className="flex justify-center py-2 mb-2">
+                <div className="animate-bounce">
+                  <CharacterFace character={charA} expression="excited" size={64} />
+                </div>
+              </div>
+              <div className="text-white/50 text-sm animate-pulse mb-4">
+                Waiting for opponent...
+              </div>
+              <Button onClick={handleMenu} variant="ghost" size="sm">
+                Leave
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   const isWin = result === 'win'
+  const isDraw = result === 'draw'
 
   const rival = cpuDifficulty ? CPU_RIVALS[cpuDifficulty] : null
 
+  const titleText = isDraw ? 'Draw' : isWin ? 'Victory!' : 'Defeat'
+  const titleGradient = isDraw
+    ? 'from-blue-300 via-purple-300 to-blue-300'
+    : isWin
+      ? 'from-yellow-300 via-amber-200 to-pink-300'
+      : 'from-gray-400 to-gray-500'
+  const titleGlow = isDraw
+    ? '0 0 20px rgba(147,130,255,0.5), 0 0 40px rgba(147,130,255,0.25)'
+    : isWin
+      ? '0 0 20px rgba(255,215,0,0.5), 0 0 40px rgba(255,215,0,0.25)'
+      : '0 0 20px rgba(150,150,150,0.3)'
+  const faceExpression = isDraw ? 'surprised' as const : isWin ? 'excited' as const : 'dead' as const
+
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-xl z-20 pointer-events-auto">
-      <div className="text-center p-6 gameover-slide-up max-w-md w-full">
+      <div className="text-center p-3 sm:p-6 gameover-slide-up max-w-md w-full">
         {/* Title with flanking faces */}
-        <div className="flex items-center justify-center gap-3 mb-1">
+        <div className="flex items-center justify-center gap-2 sm:gap-3 mb-1">
           <div className="gameover-face-left">
             <div className="gameover-face-spin">
-              <CharacterFace character={charA} expression={isWin ? 'excited' : 'dead'} size={52} />
+              <CharacterFace character={charA} expression={faceExpression} size={36} className="sm:hidden" />
+              <CharacterFace character={charA} expression={faceExpression} size={52} className="hidden sm:block" />
             </div>
           </div>
           <h2
-            className={`text-4xl font-black bg-gradient-to-r ${
-              isWin
-                ? 'from-yellow-300 via-amber-200 to-pink-300'
-                : 'from-gray-400 to-gray-500'
-            } bg-clip-text text-transparent`}
-            style={{
-              textShadow: isWin
-                ? '0 0 20px rgba(255,215,0,0.5), 0 0 40px rgba(255,215,0,0.25)'
-                : '0 0 20px rgba(150,150,150,0.3)',
-            }}
+            className={`text-2xl sm:text-4xl font-black bg-gradient-to-r ${titleGradient} bg-clip-text text-transparent`}
+            style={{ textShadow: titleGlow }}
           >
-            {isWin ? 'Victory!' : 'Defeat'}
+            {titleText}
           </h2>
           <div className="gameover-face-right">
             <div className="gameover-face-spin">
-              <CharacterFace character={charB} expression={isWin ? 'excited' : 'dead'} size={52} />
+              <CharacterFace character={charB} expression={faceExpression} size={36} className="sm:hidden" />
+              <CharacterFace character={charB} expression={faceExpression} size={52} className="hidden sm:block" />
             </div>
           </div>
         </div>
 
         {rival && (
-          <div className="text-white/40 text-xs uppercase tracking-wider mb-2">
+          <div className="text-white/40 text-xs uppercase tracking-wider mb-1 sm:mb-2">
             vs {rival.name}
           </div>
         )}
 
         {opponentDisconnected && (
-          <div className="text-white/50 text-sm mb-2">
+          <div className="text-white/50 text-xs sm:text-sm mb-1 sm:mb-2">
             {rival?.name ?? 'Opponent'} disconnected
           </div>
         )}
 
         {/* Score comparison */}
-        <div className="bg-white/8 border border-white/10 rounded-xl p-4 mb-4">
-          <div className="flex items-center justify-center gap-6 mb-2">
+        <div className="bg-white/8 border border-white/10 rounded-xl p-2.5 sm:p-4 mb-3 sm:mb-4">
+          <div className="flex items-center justify-center gap-3 sm:gap-6 mb-1 sm:mb-2">
             <div className="text-center">
-              <div className="text-xs text-white/40 uppercase">You</div>
-              <div className="text-3xl font-black bg-gradient-to-r from-yellow-300 to-orange-300 bg-clip-text text-transparent">
+              <div className="text-[10px] sm:text-xs text-white/40 uppercase">You</div>
+              <div className="text-xl sm:text-3xl font-black bg-gradient-to-r from-yellow-300 to-orange-300 bg-clip-text text-transparent">
                 {displayScore.toLocaleString()}
               </div>
             </div>
-            <div className="text-white/20 font-black text-sm">vs</div>
+            <div className="text-white/20 font-black text-xs sm:text-sm">vs</div>
             <div className="text-center">
-              <div className="text-xs text-white/40 uppercase">{rival?.name ?? 'Opponent'}</div>
-              <div className="text-3xl font-black bg-gradient-to-r from-yellow-300 to-orange-300 bg-clip-text text-transparent">
+              <div className="text-[10px] sm:text-xs text-white/40 uppercase">{rival?.name ?? 'Opponent'}</div>
+              <div className="text-xl sm:text-3xl font-black bg-gradient-to-r from-yellow-300 to-orange-300 bg-clip-text text-transparent">
                 {opponentScore.toLocaleString()}
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 text-sm mt-3">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 text-xs sm:text-sm mt-2 sm:mt-3">
             <div className="gameover-stat-pop" style={{ animationDelay: '0ms' }}>
               <div className="text-white/40">Cleared</div>
               <div className="font-bold text-white">{blocksCleared}</div>
             </div>
             <div className="gameover-stat-pop" style={{ animationDelay: '100ms' }}>
-              <div className="text-white/40">Best Chain</div>
+              <div className="text-white/40">Chain</div>
               <div className="font-bold text-yellow-300">{maxChain}x</div>
             </div>
             <div className="gameover-stat-pop" style={{ animationDelay: '200ms' }}>
-              <div className="text-white/40">Best Combo</div>
+              <div className="text-white/40">Combo</div>
               <div className="font-bold text-pink-300">{maxCombo}x</div>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+        <div className="flex flex-col gap-2 sm:gap-3 justify-center items-center">
           <Button onClick={handleRematch} variant="primary" size="lg">
             Rematch
           </Button>

@@ -4,14 +4,16 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch index.ts",
+    "dev": "tsx watch --env-file=.env index.ts",
     "setup": "tsx setup.ts"
   },
   "dependencies": {
+    "cors": "^2.8.5",
     "express": "^4.21.0"
   },
   "devDependencies": {
-    "tsx": "^4.19.0",
-    "@types/express": "^4.17.21"
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "tsx": "^4.19.0"
   }
 }

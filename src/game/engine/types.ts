@@ -73,4 +73,5 @@ export interface GameOptions {
   addRowWhileActive?: boolean
   scoringSystem?: string
   colors?: (string | null)[]
+  seed?: number
 }

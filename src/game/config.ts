@@ -14,6 +14,7 @@ export function createGameConfig(parent: string): Phaser.Types.Core.GameConfig {
     height: GAME_HEIGHT,
     parent,
     transparent: true,
+    disableVisibilityChange: true,
     scene: [BootScene, GameScene, GameOverScene],
     scale: {
       mode: Phaser.Scale.FIT,
@@ -37,6 +38,7 @@ export function createVsGameConfig(parent: string): Phaser.Types.Core.GameConfig
     height: VS_GAME_HEIGHT,
     parent,
     transparent: true,
+    disableVisibilityChange: true,
     scene: [VsBootScene, VsGameScene],
     scale: {
       mode: Phaser.Scale.FIT,
@@ -60,6 +62,7 @@ export function createVsMobileGameConfig(parent: string): Phaser.Types.Core.Game
     height: VS_MOBILE_GAME_HEIGHT,
     parent,
     transparent: true,
+    disableVisibilityChange: true,
     scene: [VsBootScene, VsGameScene],
     scale: {
       mode: Phaser.Scale.FIT,

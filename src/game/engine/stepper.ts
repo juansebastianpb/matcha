@@ -33,7 +33,11 @@ export class ScoringStepper {
     const initialRNG = new JKISS31()
     const numBlocks = width * height
 
-    initialRNG.scramble()
+    if (options.seed != null) {
+      initialRNG.seedFrom(options.seed)
+    } else {
+      initialRNG.scramble()
+    }
 
     const state: GameState = {
       time: 0,

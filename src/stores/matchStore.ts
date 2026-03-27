@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { debug } from '../lib/debug'
 import { createRoom, joinRoom, searchMatch } from '../services/matchmaking'
 import { createMatchChannel } from '../services/matchChannel'
 import type { MatchChannel } from '../services/matchChannel'
@@ -6,7 +7,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import type { AIDifficulty } from '../game/ai/PuzzleAI'
 
 export type MatchMode = 'idle' | 'searching' | 'creating' | 'waiting' | 'joining' | 'ready_check' | 'countdown' | 'playing' | 'finished'
-export type MatchResult = 'win' | 'lose' | null
+export type MatchResult = 'win' | 'lose' | 'draw' | null
 
 interface MatchState {
   mode: MatchMode
@@ -117,6 +118,16 @@ export const useMatchStore = create<MatchState>((set, get) => ({
       const handle = await createRoom(roomCodeOverride)
       const channel = createMatchChannel(handle.channel)
 
+      // Set mode to 'waiting' BEFORE registering the ready callback,
+      // so the guard doesn't reject early ready signals from the guest
+      set({
+        mode: 'waiting',
+        roomCode: handle.roomCode,
+        role: 'host',
+        rawChannel: handle.channel,
+        channel,
+      })
+
       channel.onOpponentReady(() => {
         const state = get()
         if (state.mode !== 'waiting') return
@@ -127,14 +138,6 @@ export const useMatchStore = create<MatchState>((set, get) => ({
 
         channel.sendMatchStart({ hostSeed, guestSeed, startAt })
         set({ opponentConnected: true, mode: 'countdown', startAt, localSeed: hostSeed, remoteSeed: guestSeed })
-      })
-
-      set({
-        mode: 'waiting',
-        roomCode: handle.roomCode,
-        role: 'host',
-        rawChannel: handle.channel,
-        channel,
       })
     } catch (err) {
       set({ mode: 'idle', error: (err as Error).message })
@@ -197,7 +200,7 @@ export const useMatchStore = create<MatchState>((set, get) => ({
 
     if (!channel) return
 
-    // Regular multiplayer rematch
+    // Regular multiplayer rematch — clicking Rematch IS the ready signal
     channel.resetCallbacks()
 
     set({
@@ -207,7 +210,7 @@ export const useMatchStore = create<MatchState>((set, get) => ({
       opponentScore: 0,
       result: null,
       error: null,
-      localReady: false,
+      localReady: true,
       startAt: null,
       localSeed: null,
       remoteSeed: null,
@@ -221,13 +224,17 @@ export const useMatchStore = create<MatchState>((set, get) => ({
       set({ mode: 'countdown', startAt, localSeed: hostSeed, remoteSeed: guestSeed })
     }
 
+    // Register listeners BEFORE sending ready
     channel.onOpponentReady(() => {
       const state = get()
       if (state.mode !== 'ready_check') return
       set({ opponentConnected: true })
-      if (state.localReady && state.role === 'host') {
+      if (state.role === 'host') {
         startMatch()
       }
+      // Re-send ready in case opponent missed our first one
+      // (they may have clicked rematch after we sent ours)
+      channel.sendReady()
     })
 
     if (role === 'guest') {
@@ -247,6 +254,17 @@ export const useMatchStore = create<MatchState>((set, get) => ({
     channel.onOpponentDisconnect(() => {
       get().setOpponentDisconnected()
     })
+
+    // Send ready after listeners are registered
+    channel.sendReady()
+
+    // Retry ready after 2s in case both players clicked simultaneously
+    // and both missed each other's first ready event
+    setTimeout(() => {
+      if (get().mode === 'ready_check') {
+        channel.sendReady()
+      }
+    }, 2000)
   },
 
   confirmReady: () => {
@@ -267,9 +285,13 @@ export const useMatchStore = create<MatchState>((set, get) => ({
 
   setPlaying: () => set({ mode: 'playing' }),
 
-  setFinished: (result: 'win' | 'lose') => {
-    // Don't overwrite if already finished (prevents delayed-call race)
-    if (get().mode === 'finished') return
+  setFinished: (result: 'win' | 'lose' | 'draw') => {
+    const { mode } = get()
+    if (mode === 'finished') {
+      debug('MatchStore', `setFinished(${result}) SKIPPED — already finished`)
+      return
+    }
+    debug('MatchStore', `setFinished(${result}) — was mode=${mode}`)
     set({ mode: 'finished', result })
   },
 
@@ -277,9 +299,11 @@ export const useMatchStore = create<MatchState>((set, get) => ({
 
   setOpponentDisconnected: () => {
     const { mode } = get()
+    debug('MatchStore', `setOpponentDisconnected — mode=${mode}`)
     if (mode === 'finished') return
     set({ opponentDisconnected: true })
     if (mode === 'playing' || mode === 'countdown') {
+      debug('MatchStore', `opponent disconnected during ${mode} → auto-win`)
       get().setFinished('win')
     }
   },

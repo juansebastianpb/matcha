@@ -63,7 +63,9 @@ export function Landing() {
       .catch(() => {
         // Challenge not available
       })
-    return () => setNavigateToGame(null)
+    return () => {
+      // Don't clear — ChallengePage or next mount will overwrite
+    }
   }, [navigate])
 
   return (
@@ -120,7 +122,7 @@ export function Landing() {
                 </Link>
               </div>
               {/* @ts-expect-error challenge-button is a custom element */}
-              <challenge-button variant="play" size="lg" full-width class="w-full max-w-xs"></challenge-button>
+              <challenge-button variant="play" size="lg" full-width class="w-full max-w-xs mt-2.5"></challenge-button>
             </div>
           ) : (
             <div className="bg-white/[0.06] border border-white/[0.08] rounded-2xl backdrop-blur-sm p-5 max-w-xs w-full mx-auto">

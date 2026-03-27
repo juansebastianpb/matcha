@@ -27,3 +27,9 @@ dist-ssr
 .env
 .env.local
 .vercel
+
+# MCP config (contains secrets)
+.mcp.json
+
+# Supabase CLI temp files
+supabase/.temp/
