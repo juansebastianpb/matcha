@@ -819,10 +819,6 @@ export class VsGameScene extends Phaser.Scene {
     this.cameras.main.shake(600, 0.02)
 
     // Close both boards with neutral animation
-    const otherBoard = this._localDied && !this._remoteDied ? this.remote
-      : this._remoteDied && !this._localDied ? this.local
-      : null // both died
-
     if (bothDied) {
       // Both boards died — cascade both
       this.remote.isGameOver = true

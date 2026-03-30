@@ -47,6 +47,7 @@ interface ChallengeWidget {
   showWin(data: { matchId: string; opponent: ChallengeOpponent; profit?: number }): void
   showLose(data: { matchId: string; opponent: ChallengeOpponent; loss?: number }): void
   showDraw(data: { matchId: string; opponent: ChallengeOpponent }): void
+  settle(data: { matchId: string; winnerId?: string; gameData?: Record<string, unknown> }): void
   setPostMatchHandlers(handlers: {
     onMatchStarting?: (data: { matchId: string }) => void
     onNewOpponent?: () => void

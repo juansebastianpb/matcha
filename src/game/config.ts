@@ -14,6 +14,7 @@ export function createGameConfig(parent: string): Phaser.Types.Core.GameConfig {
     height: GAME_HEIGHT,
     parent,
     transparent: true,
+    // @ts-expect-error Phaser supports this at runtime but it's missing from types
     disableVisibilityChange: true,
     scene: [BootScene, GameScene, GameOverScene],
     scale: {
@@ -38,6 +39,7 @@ export function createVsGameConfig(parent: string): Phaser.Types.Core.GameConfig
     height: VS_GAME_HEIGHT,
     parent,
     transparent: true,
+    // @ts-expect-error Phaser supports this at runtime but it's missing from types
     disableVisibilityChange: true,
     scene: [VsBootScene, VsGameScene],
     scale: {
@@ -62,6 +64,7 @@ export function createVsMobileGameConfig(parent: string): Phaser.Types.Core.Game
     height: VS_MOBILE_GAME_HEIGHT,
     parent,
     transparent: true,
+    // @ts-expect-error Phaser supports this at runtime but it's missing from types
     disableVisibilityChange: true,
     scene: [VsBootScene, VsGameScene],
     scale: {

@@ -39,7 +39,7 @@ interface MatchState {
   requestRematch: () => void
   confirmReady: () => void
   setPlaying: () => void
-  setFinished: (result: 'win' | 'lose') => void
+  setFinished: (result: 'win' | 'lose' | 'draw') => void
   setOpponentScore: (score: number) => void
   setOpponentDisconnected: () => void
   cleanup: () => void
