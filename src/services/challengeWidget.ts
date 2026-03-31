@@ -5,6 +5,7 @@ export interface ChallengeReadyData {
   userId: string
   email: string
   balance: number
+  entryFee: number
   token: string
 }
 
@@ -24,6 +25,7 @@ export interface ChallengeMatchData {
 export interface ChallengeConfig {
   gameId: string
   apiKey?: string
+  entryFee?: number
   mode?: 'versus' | 'score'
   matchmaking?: 'skill' | 'fifo' | false
   showButton?: boolean
