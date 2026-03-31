@@ -5,7 +5,6 @@ export interface ChallengeReadyData {
   userId: string
   email: string
   balance: number
-  entryFee: number
   token: string
 }
 
