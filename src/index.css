@@ -8,6 +8,27 @@ html, body {
   overflow-x: hidden;
 }
 
+/* Dark scrollbar to match background */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #1a1a2e;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2a4a;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a5a;
+}
+
+/* Firefox */
+* {
+  scrollbar-color: #2a2a4a #1a1a2e;
+  scrollbar-width: thin;
+}
+
 /* Hero floating faces */
 @keyframes hero-float {
   0%, 100% { transform: translateY(0) rotate(0deg); }
