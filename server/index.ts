@@ -8,7 +8,7 @@ app.use(cors())
 const PORT = 3847
 
 const CHALLENGE_API_KEY = process.env.CHALLENGE_API_KEY || ''
-const CHALLENGE_API_BASE = process.env.CHALLENGE_API_BASE || 'https://challenge-backend-production-4835.up.railway.app'
+const CHALLENGE_API_BASE = process.env.CHALLENGE_API_BASE || 'https://api.withchallenge.com'
 
 if (!CHALLENGE_API_KEY) {
   console.warn('[server] CHALLENGE_API_KEY not set — settle endpoint will fail')
