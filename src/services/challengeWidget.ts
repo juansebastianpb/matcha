@@ -10,6 +10,7 @@ export interface ChallengeReadyData {
 }
 
 export interface ChallengeOpponent {
+  id: string
   email: string
   username: string
   skillRating: number
