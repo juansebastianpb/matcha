@@ -118,7 +118,7 @@ export function ChallengePage() {
     } else if (matchResult === 'draw') {
       // Draw — only one player settles to avoid double-settlement.
       // Use deterministic tiebreaker (lower userId settles).
-      const iSettler = userData.userId < matchData.opponent.email
+      const iSettler = userData.userId < matchData.opponent.id
       if (iSettler) {
         challenge.settle({
           matchId: matchData.matchId,
