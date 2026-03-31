@@ -171,6 +171,7 @@ export function initChallengeOnce(): Promise<void> {
     challenge.init({
       gameId: CHALLENGE_GAME_ID,
       apiKey: CHALLENGE_API_KEY,
+      entryFee: 2,
       mode: 'versus',
       matchmaking: 'skill',
       showButton: false,
