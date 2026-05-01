@@ -19,17 +19,21 @@ export interface MatchStartPayload {
   startAt: number  // timestamp ms
 }
 
+export interface GameOverPayload {
+  score: number
+}
+
 export interface MatchChannel {
   sendEvent(event: GameEventPayload): void
   sendGarbage(slab: GarbagePayload): void
-  sendGameOver(): void
+  sendGameOver(payload: GameOverPayload): void
   sendReady(): void
   sendMatchStart(payload: MatchStartPayload): void
   sendDisconnect(): void
 
   onOpponentEvent(cb: (event: GameEventPayload) => void): void
   onOpponentGarbage(cb: (slab: GarbagePayload) => void): void
-  onOpponentGameOver(cb: () => void): void
+  onOpponentGameOver(cb: (payload: GameOverPayload) => void): void
   onOpponentReady(cb: () => void): void
   onMatchStart(cb: (payload: MatchStartPayload) => void): void
   onOpponentDisconnect(cb: () => void): void
@@ -41,7 +45,7 @@ export interface MatchChannel {
 export function createMatchChannel(channel: RealtimeChannel): MatchChannel {
   let eventCallbacks: ((event: GameEventPayload) => void)[] = []
   let garbageCallbacks: ((slab: GarbagePayload) => void)[] = []
-  let gameOverCallbacks: (() => void)[] = []
+  let gameOverCallbacks: ((payload: GameOverPayload) => void)[] = []
   let readyCallbacks: (() => void)[] = []
   let matchStartCallbacks: ((payload: MatchStartPayload) => void)[] = []
   let disconnectCallbacks: (() => void)[] = []
@@ -61,10 +65,13 @@ export function createMatchChannel(channel: RealtimeChannel): MatchChannel {
     garbageCallbacks.forEach(cb => cb(payload as GarbagePayload))
   })
 
-  channel.on('broadcast', { event: 'game_over' }, () => {
+  channel.on('broadcast', { event: 'game_over' }, ({ payload }) => {
     if (destroyed) return
-    debug('MC', '← recv game_over')
-    gameOverCallbacks.forEach(cb => cb())
+    // Backwards compat: older clients send empty payload, default score to 0.
+    const p = (payload as Partial<GameOverPayload>) || {}
+    const gameOverPayload: GameOverPayload = { score: typeof p.score === 'number' ? p.score : 0 }
+    debug('MC', '← recv game_over', gameOverPayload)
+    gameOverCallbacks.forEach(cb => cb(gameOverPayload))
   })
 
   channel.on('broadcast', { event: 'ready' }, () => {
@@ -97,10 +104,10 @@ export function createMatchChannel(channel: RealtimeChannel): MatchChannel {
       channel.send({ type: 'broadcast', event: 'garbage', payload: slab })
     },
 
-    sendGameOver() {
+    sendGameOver(payload: GameOverPayload) {
       if (destroyed) return
-      debug('MC', '→ send game_over')
-      channel.send({ type: 'broadcast', event: 'game_over', payload: {} })
+      debug('MC', '→ send game_over', payload)
+      channel.send({ type: 'broadcast', event: 'game_over', payload })
     },
 
     sendReady() {

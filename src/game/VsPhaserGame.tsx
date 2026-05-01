@@ -85,9 +85,9 @@ function wireNetworkToScene(
       scene.applyIncomingGarbage(slab)
     })
 
-    channel.onOpponentGameOver(() => {
+    channel.onOpponentGameOver((payload) => {
       if (!scene.scene.isActive()) return
-      scene.applyOpponentGameOver()
+      scene.applyOpponentGameOver(payload)
     })
 
     channel.onOpponentDisconnect(() => {

@@ -105,6 +105,7 @@ export class VsGameScene extends Phaser.Scene {
   private _localDeathTick = -1
   private _remoteDeathTick = -1
   private _graceTicksRemaining = -1  // countdown for draw-detection grace period
+  private _remoteFinalScoreFromNetwork: number | null = null
   private cpuAI: PuzzleAI | null = null
 
   constructor() {
@@ -122,6 +123,7 @@ export class VsGameScene extends Phaser.Scene {
     this._localDeathTick = -1
     this._remoteDeathTick = -1
     this._graceTicksRemaining = -1
+    this._remoteFinalScoreFromNetwork = null
     this._pendingResult = null
     this.mobile = data?.mobile ?? false
 
@@ -750,14 +752,20 @@ export class VsGameScene extends Phaser.Scene {
       this._localDied = true
       this._localDeathTick = deathTick
       useGameStore.getState().setScore(board.savedFinalScore)
-      // Broadcast to opponent
-      debug('Game', 'Broadcasting game_over to opponent')
+      // Broadcast to opponent — include final score so they show the
+      // authoritative value, not their (potentially stale) locally-mirrored copy.
+      debug('Game', 'Broadcasting game_over to opponent', { score: board.savedFinalScore })
       const channel = useMatchStore.getState().channel
-      if (channel) channel.sendGameOver()
+      if (channel) channel.sendGameOver({ score: board.savedFinalScore })
     } else {
       this._remoteDied = true
       this._remoteDeathTick = deathTick
-      useMatchStore.getState().setOpponentScore(board.savedFinalScore)
+      // Score may have been set by the network handler with the authoritative value;
+      // only fall back to the local mirror if no remoteFinalScore was provided.
+      const networkScore = this._remoteFinalScoreFromNetwork
+      const score = typeof networkScore === 'number' ? networkScore : board.savedFinalScore
+      board.savedFinalScore = score
+      useMatchStore.getState().setOpponentScore(score)
     }
 
     debug('Game', `${which} board died — score=${board.savedFinalScore}, tick=${deathTick}, localDied=${this._localDied}, remoteDied=${this._remoteDied}`)
@@ -1853,8 +1861,13 @@ export class VsGameScene extends Phaser.Scene {
   }
 
   /** Called externally when opponent reports game over */
-  applyOpponentGameOver(): void {
-    debug('Game', `applyOpponentGameOver — matchOver=${this.matchOver}, remote.isGameOver=${this.remote.isGameOver}`)
+  applyOpponentGameOver(payload?: { score?: number }): void {
+    debug('Game', `applyOpponentGameOver — matchOver=${this.matchOver}, remote.isGameOver=${this.remote.isGameOver}, payloadScore=${payload?.score}`)
+    // Stash the authoritative score sent by the opponent. handleBoardGameOver
+    // reads this in the 'remote' branch instead of trusting the local engine's mirror.
+    if (typeof payload?.score === 'number') {
+      this._remoteFinalScoreFromNetwork = payload.score
+    }
     // Allow through even if matchOver is true — handleBoardGameOver will upgrade to draw
     this.handleBoardGameOver(this.remote, 'remote')
   }
