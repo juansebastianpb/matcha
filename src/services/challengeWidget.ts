@@ -67,7 +67,6 @@ const CHALLENGE_SCRIPT_URL =
   'https://api.withchallenge.com/widget/dist/challenge-widget.js'
 
 const CHALLENGE_GAME_ID = import.meta.env.VITE_CHALLENGE_GAME_ID || ''
-const CHALLENGE_API_KEY = import.meta.env.VITE_CHALLENGE_API_KEY || ''
 
 // --- Shared state ---
 
@@ -171,7 +170,6 @@ export function initChallengeOnce(): Promise<void> {
 
     challenge.init({
       gameId: CHALLENGE_GAME_ID,
-      apiKey: CHALLENGE_API_KEY,
       entryFee: 2,
       mode: 'versus',
       matchmaking: 'skill',
@@ -212,24 +210,46 @@ export function getChallenge(): ChallengeWidget | null {
 }
 
 // --- Server-side settlement (versus mode) ---
+// Sends settle request to matcha's serverless function (api/challenge/settle.ts), which
+// authenticates the caller and forwards to Challenge backend with the server-only API key.
+// Pass winnerId=null (or omit) to settle as a draw.
 
-export async function settleMatch(matchId: string, winnerId: string, gameData?: Record<string, unknown>): Promise<boolean> {
+export interface SettleResult {
+  ok: boolean
+  alreadySettled?: boolean
+  error?: string
+}
+
+export async function settleMatch(
+  matchId: string,
+  winnerId: string | null,
+  gameData?: Record<string, unknown>
+): Promise<SettleResult> {
+  if (!_userData?.token) {
+    return { ok: false, error: 'Not authenticated' }
+  }
+
   try {
-    debug('Challenge', 'Settling match via backend', { matchId, winnerId })
+    debug('Challenge', 'Settling match via matcha server', { matchId, winnerId })
     const res = await fetch('/api/challenge/settle', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${_userData.token}`,
+      },
       body: JSON.stringify({ matchId, winnerId, gameData }),
     })
-    const data = await res.json()
-    if (!res.ok) {
-      console.error('[Challenge] Settlement failed:', data)
-      return false
+    const data = (await res.json().catch(() => null)) as { error?: string; alreadySettled?: boolean } | null
+
+    if (res.ok) {
+      debug('Challenge', 'Match settled', data)
+      return { ok: true, alreadySettled: !!data?.alreadySettled }
     }
-    debug('Challenge', 'Match settled:', data)
-    return true
+
+    console.error('[Challenge] Settlement failed:', res.status, data)
+    return { ok: false, error: data?.error || `HTTP ${res.status}` }
   } catch (err) {
     console.error('[Challenge] Settlement request failed:', err)
-    return false
+    return { ok: false, error: err instanceof Error ? err.message : 'Network error' }
   }
 }

@@ -21,6 +21,7 @@ import {
   setNavigateToGame,
   getChallengeMatchData,
   cleanupChallengeRetry,
+  settleMatch,
 } from '../services/challengeWidget'
 import { debug } from '../lib/debug'
 
@@ -86,8 +87,10 @@ export function ChallengePage() {
     }
   }, [navigate])
 
-  // Report result to Challenge when game ends (versus mode)
-  // Winner settles directly via Challenge.settle() — no server endpoint needed
+  // Report result to Challenge when game ends (versus mode).
+  // Both clients call the matcha settle endpoint (idempotent: first wins, second gets alreadySettled).
+  // After the server settles, the widget auto-renders results via the match.settled WS event.
+  // We also call show* on success for an immediate display in case the WS event is delayed.
   const isGameOver = useGameStore((s) => s.isGameOver)
   const matchResult = useMatchStore((s) => s.result)
 
@@ -108,28 +111,26 @@ export function ChallengePage() {
       maxCombo: useGameStore.getState().maxCombo,
     }
 
-    if (matchResult === 'win') {
-      // Winner settles the match directly via widget
-      challenge.settle({
-        matchId: matchData.matchId,
-        winnerId: userData.userId,
-        gameData,
-      })
-    } else if (matchResult === 'draw') {
-      // Draw — only one player settles to avoid double-settlement.
-      // Use deterministic tiebreaker (lower userId settles).
-      const iSettler = userData.userId < matchData.opponent.id
-      if (iSettler) {
-        challenge.settle({
-          matchId: matchData.matchId,
-          gameData,
-        })
+    let claimedWinner: string | null
+    if (matchResult === 'win') claimedWinner = userData.userId
+    else if (matchResult === 'lose') claimedWinner = matchData.opponent.id
+    else claimedWinner = null
+
+    void (async () => {
+      const result = await settleMatch(matchData.matchId, claimedWinner, gameData)
+      if (!result.ok) {
+        console.error('[Challenge] Settlement failed; widget will fall back to its 15-min timeout', result.error)
+        return
       }
-      // The other player waits — the widget shows the draw screen
-      // automatically when it receives the settlement via WebSocket.
-    } else {
-      challenge.showLose({ matchId: matchData.matchId, opponent: matchData.opponent })
-    }
+
+      if (matchResult === 'win') {
+        challenge.showWin({ matchId: matchData.matchId, opponent: matchData.opponent })
+      } else if (matchResult === 'draw') {
+        challenge.showDraw({ matchId: matchData.matchId, opponent: matchData.opponent })
+      } else {
+        challenge.showLose({ matchId: matchData.matchId, opponent: matchData.opponent })
+      }
+    })()
   }, [isGameOver, matchResult])
 
   // Setup timeout — if channel handshake doesn't complete in 20s, show error
