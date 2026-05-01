@@ -820,6 +820,18 @@ export class VsGameScene extends Phaser.Scene {
     }
     this._pendingResult = result
 
+    // Winner: broadcast our final score so the loser's defeat screen shows
+    // the authoritative final score (not the stale value from when they died).
+    if (result === 'win') {
+      const finalScore = this.local.lastState?.score ?? this.local.savedFinalScore ?? 0
+      this.local.savedFinalScore = finalScore
+      const channel = useMatchStore.getState().channel
+      if (channel) {
+        debug('Game', 'Broadcasting match_final_score (winner side)', { score: finalScore })
+        channel.sendMatchFinalScore({ score: finalScore })
+      }
+    }
+
     debug('Game', `*** RESULT: ${result} *** localDied=${this._localDied}(tick ${this._localDeathTick}), remoteDied=${this._remoteDied}(tick ${this._remoteDeathTick}), localScore=${this.local.savedFinalScore}, remoteScore=${this.remote.savedFinalScore}`)
 
     stopMusic()

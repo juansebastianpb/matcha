@@ -90,6 +90,13 @@ function wireNetworkToScene(
       scene.applyOpponentGameOver(payload)
     })
 
+    channel.onOpponentMatchFinalScore((payload) => {
+      // Winner sends their authoritative final score after their match resolves.
+      // The loser's display has been frozen at the stale value from when they died;
+      // update it so both clients show consistent final scores.
+      useMatchStore.getState().setOpponentScore(payload.score)
+    })
+
     channel.onOpponentDisconnect(() => {
       useMatchStore.getState().setOpponentDisconnected()
     })
