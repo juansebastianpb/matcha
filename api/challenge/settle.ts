@@ -63,8 +63,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const errMsg = settleData?.error || '';
 
-  // Idempotent: a prior call already settled. Treat as success.
-  if (settleRes.status === 400 && /already settled/i.test(errMsg)) {
+  // Idempotent: a prior call already settled (or the match expired and was refunded).
+  // Backend throws "Match already settled" when atomic update loses the race,
+  // or "Match not active" when the pre-check sees status already changed to completed/expired.
+  if (settleRes.status === 400 && (/already settled/i.test(errMsg) || /not active/i.test(errMsg))) {
     return res.status(200).json({ alreadySettled: true });
   }
 
