@@ -61,13 +61,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json(settleData ?? { success: true });
   }
 
-  const errMsg = settleData?.error || '';
+  const errMsg = (settleData as { error?: string } | null)?.error || '';
 
   // Idempotent: a prior call already settled (or the match expired and was refunded).
   // Backend throws "Match already settled" when atomic update loses the race,
   // or "Match not active" when the pre-check sees status already changed to completed/expired.
+  // In that case, fetch the settlement state so we can return the same authoritative
+  // payload to the client as the winning caller would have received.
   if (settleRes.status === 400 && (/already settled/i.test(errMsg) || /not active/i.test(errMsg))) {
-    return res.status(200).json({ alreadySettled: true });
+    try {
+      const stateRes = await fetch(`${CHALLENGE_API_BASE}/api/matches/${matchId}/settlement-state`, {
+        headers: { Authorization: auth },
+      });
+      const stateData = stateRes.ok ? await stateRes.json() : null;
+      return res.status(200).json({
+        alreadySettled: true,
+        settlementState: stateData,
+      });
+    } catch {
+      return res.status(200).json({ alreadySettled: true });
+    }
   }
 
   console.error(`[settle] Challenge backend ${settleRes.status}: ${errMsg}`);

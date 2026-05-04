@@ -49,6 +49,7 @@ interface ChallengeWidget {
   showWin(data: { matchId: string; opponent: ChallengeOpponent; profit?: number }): void
   showLose(data: { matchId: string; opponent: ChallengeOpponent; loss?: number }): void
   showDraw(data: { matchId: string; opponent: ChallengeOpponent }): void
+  applySettlementState(state: SettlementState): void
   settle(data: { matchId: string; winnerId?: string; gameData?: Record<string, unknown> }): void
   setPostMatchHandlers(handlers: {
     onMatchStarting?: (data: { matchId: string }) => void
@@ -214,9 +215,24 @@ export function getChallenge(): ChallengeWidget | null {
 // authenticates the caller and forwards to Challenge backend with the server-only API key.
 // Pass winnerId=null (or omit) to settle as a draw.
 
+export interface SettlementState {
+  matchId: string
+  outcome: 'win' | 'draw'
+  winnerId: string | null
+  player1Id: string
+  player2Id: string
+  entryFee: number
+  prizePool: number
+  payout: number
+  platformFee: number
+  refund: number
+  settledAt: string
+}
+
 export interface SettleResult {
   ok: boolean
   alreadySettled?: boolean
+  state?: SettlementState
   error?: string
 }
 
@@ -239,11 +255,19 @@ export async function settleMatch(
       },
       body: JSON.stringify({ matchId, winnerId, gameData }),
     })
-    const data = (await res.json().catch(() => null)) as { error?: string; alreadySettled?: boolean } | null
+    const data = (await res.json().catch(() => null)) as {
+      error?: string
+      alreadySettled?: boolean
+      settlementState?: SettlementState
+    } | null
 
     if (res.ok) {
       debug('Challenge', 'Match settled', data)
-      return { ok: true, alreadySettled: !!data?.alreadySettled }
+      return {
+        ok: true,
+        alreadySettled: !!data?.alreadySettled,
+        state: data?.settlementState,
+      }
     }
 
     console.error('[Challenge] Settlement failed:', res.status, data)

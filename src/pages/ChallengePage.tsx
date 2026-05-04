@@ -88,9 +88,11 @@ export function ChallengePage() {
   }, [navigate])
 
   // Report result to Challenge when game ends (versus mode).
-  // Both clients call the matcha settle endpoint (idempotent: first wins, second gets alreadySettled).
-  // After the server settles, the widget auto-renders results via the match.settled WS event.
-  // We also call show* on success for an immediate display in case the WS event is delayed.
+  // Both clients POST to the matcha settle endpoint, which forwards to Challenge backend.
+  // The endpoint is idempotent: first caller settles, second gets alreadySettled with the
+  // same authoritative settlementState. Either way, we hand the state to the widget which
+  // renders it via Challenge.applySettlementState (idempotent — safe even if the WS
+  // match.settled event also fires).
   const isGameOver = useGameStore((s) => s.isGameOver)
   const matchResult = useMatchStore((s) => s.result)
 
@@ -119,17 +121,14 @@ export function ChallengePage() {
     void (async () => {
       const result = await settleMatch(matchData.matchId, claimedWinner, gameData)
       if (!result.ok) {
-        console.error('[Challenge] Settlement failed; widget will fall back to its 15-min timeout', result.error)
+        console.error('[Challenge] Settlement failed; widget will fall back to its WS event + poll', result.error)
         return
       }
-
-      if (matchResult === 'win') {
-        challenge.showWin({ matchId: matchData.matchId, opponent: matchData.opponent })
-      } else if (matchResult === 'draw') {
-        challenge.showDraw({ matchId: matchData.matchId, opponent: matchData.opponent })
-      } else {
-        challenge.showLose({ matchId: matchData.matchId, opponent: matchData.opponent })
+      if (result.state) {
+        challenge.applySettlementState(result.state)
       }
+      // If no state (older server response shape), the widget's WS event +
+      // settlement-state polling fallback will render the result.
     })()
   }, [isGameOver, matchResult])
 
