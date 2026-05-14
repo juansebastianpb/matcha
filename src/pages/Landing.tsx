@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
+import { ChallengeWaitlistModal } from '../components/ChallengeWaitlistModal'
 import { CHARACTERS } from '../characters'
 import { CharacterFace } from '../components/CharacterFace'
 import { CPU_RIVALS } from '../lib/cpuRivals'
 import { useMatchStore } from '../stores/matchStore'
 import { initChallengeOnce, setNavigateToGame } from '../services/challengeWidget'
+
+const CHALLENGE_GATE_ENABLED = import.meta.env.PROD
 import type { AIDifficulty } from '../game/ai/PuzzleAI'
 import type { Expression } from '../characters'
 
@@ -48,24 +51,26 @@ const HERO_FACES: { charIdx: number; expression: Expression; size: number; opaci
 
 export function Landing() {
   const [showModeSelect, setShowModeSelect] = useState(false)
+  const [showChallengeWaitlist, setShowChallengeWaitlist] = useState(false)
   const navigate = useNavigate()
   const handleCpuMatch = (difficulty: AIDifficulty) => {
     useMatchStore.getState().startCpuMatch(difficulty)
     navigate('/vs')
   }
 
-  // Init Challenge SDK — button is rendered instantly by <challenge-button> custom element
+  // Init Challenge SDK so the <challenge-button> custom element renders.
+  // In dev the real button is live (navigates to /challenge); in prod it's
+  // gated by a transparent overlay that opens the waitlist modal instead.
   useEffect(() => {
     initChallengeOnce()
       .then(() => {
-        setNavigateToGame(() => navigate('/challenge'))
+        if (!CHALLENGE_GATE_ENABLED) {
+          setNavigateToGame(() => navigate('/challenge'))
+        }
       })
       .catch(() => {
         // Challenge not available
       })
-    return () => {
-      // Don't clear — ChallengePage or next mount will overwrite
-    }
   }, [navigate])
 
   return (
@@ -121,8 +126,18 @@ export function Landing() {
                   <Button size="lg" variant="secondary">Multiplayer</Button>
                 </Link>
               </div>
-              {/* @ts-expect-error challenge-button is a custom element */}
-              <challenge-button variant="default" size="lg" full-width class="w-full max-w-xs mt-2.5"></challenge-button>
+              <div className="relative w-full max-w-xs mt-2.5">
+                {/* @ts-expect-error challenge-button is a custom element */}
+                <challenge-button variant="default" size="lg" full-width class={`block w-full ${CHALLENGE_GATE_ENABLED ? 'pointer-events-none' : ''}`}></challenge-button>
+                {CHALLENGE_GATE_ENABLED && (
+                  <button
+                    type="button"
+                    aria-label="Challenge"
+                    onClick={() => setShowChallengeWaitlist(true)}
+                    className="absolute inset-0 cursor-pointer rounded-xl"
+                  />
+                )}
+              </div>
             </div>
           ) : (
             <div className="bg-white/[0.06] border border-white/[0.08] rounded-2xl backdrop-blur-sm p-5 max-w-xs w-full mx-auto">
@@ -506,6 +521,11 @@ export function Landing() {
           </Link>
         </div>
       </section>
+
+      <ChallengeWaitlistModal
+        open={showChallengeWaitlist}
+        onClose={() => setShowChallengeWaitlist(false)}
+      />
     </div>
   )
 }
