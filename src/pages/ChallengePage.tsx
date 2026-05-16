@@ -41,6 +41,7 @@ export function ChallengePage() {
   const [error, setError] = useState<string | null>(null)
   const resultReportedRef = useRef(false)
   const [setupTimedOut, setSetupTimedOut] = useState(false)
+  const [settleStatus, setSettleStatus] = useState<'settling' | 'conflicted' | 'done'>('settling')
 
   // Canvas sizing (same as Vs.tsx)
   const [canvasWidth, setCanvasWidth] = useState<number | null>(null)
@@ -65,6 +66,7 @@ export function ChallengePage() {
             onMatchStarting: () => {
               resultReportedRef.current = false
               setSetupTimedOut(false)
+              setSettleStatus('settling')
               useGameStore.getState().reset()
               useMatchStore.getState().cleanup()
               setGameKey((k) => k + 1)
@@ -72,6 +74,7 @@ export function ChallengePage() {
             onNewOpponent: () => {
               resultReportedRef.current = false
               setSetupTimedOut(false)
+              setSettleStatus('settling')
               useGameStore.getState().reset()
               useMatchStore.getState().cleanup()
             },
@@ -124,6 +127,20 @@ export function ChallengePage() {
         console.error('[Challenge] Settlement failed; widget will fall back to its WS event + poll', result.error)
         return
       }
+      if (result.conflicted) {
+        // The two clients reported different winners. The match is left unsettled;
+        // Challenge refunds both players on expiry — nobody is paid out.
+        debug('Challenge', 'Settlement conflicted — match will be refunded on expiry')
+        setSettleStatus('conflicted')
+        return
+      }
+      if (result.pending) {
+        // Our report is recorded; the opponent's client reaches consensus and
+        // settles. Challenge then broadcasts match.settled, which the widget renders.
+        debug('Challenge', 'Settlement pending — awaiting opponent report')
+        return
+      }
+      setSettleStatus('done')
       if (result.state) {
         challenge.applySettlementState(result.state)
       }
@@ -235,7 +252,7 @@ export function ChallengePage() {
                 <div className="relative w-full h-full">
                   <CountdownOverlay />
                   <HypeOverlay />
-                  <ChallengeGameOverOverlay />
+                  <ChallengeGameOverOverlay settleStatus={settleStatus} />
                 </div>
               </div>
             </div>
@@ -287,7 +304,7 @@ export function ChallengePage() {
               <div className="relative w-full h-full">
                 <CountdownOverlay />
                 <HypeOverlay />
-                <ChallengeGameOverOverlay />
+                <ChallengeGameOverOverlay settleStatus={settleStatus} />
               </div>
             </div>
           </div>
@@ -299,7 +316,7 @@ export function ChallengePage() {
 
 // --- Challenge-specific game over overlay ---
 
-function ChallengeGameOverOverlay() {
+function ChallengeGameOverOverlay({ settleStatus }: { settleStatus: 'settling' | 'conflicted' | 'done' }) {
   const isGameOver = useGameStore((s) => s.isGameOver)
   const finalScore = useGameStore((s) => s.finalScore)
   const blocksCleared = useGameStore((s) => s.blocksCleared)
@@ -415,9 +432,15 @@ function ChallengeGameOverOverlay() {
           </div>
         </div>
 
-        <p className="text-white/40 text-xs mb-3">
-          Challenge is settling the match...
-        </p>
+        {settleStatus === 'conflicted' ? (
+          <p className="text-amber-300/80 text-xs mb-3">
+            Result couldn't be confirmed — your entry fee will be refunded.
+          </p>
+        ) : settleStatus === 'done' ? null : (
+          <p className="text-white/40 text-xs mb-3">
+            Challenge is settling the match...
+          </p>
+        )}
 
         <Button onClick={handleMenu} variant="ghost" size="lg">
           Back to Menu

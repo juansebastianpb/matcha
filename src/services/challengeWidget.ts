@@ -232,6 +232,13 @@ export interface SettlementState {
 export interface SettleResult {
   ok: boolean
   alreadySettled?: boolean
+  // Our winner report was recorded but the opponent hasn't reported yet —
+  // settlement happens once both clients agree (consensus). No action needed:
+  // the opponent's call settles and Challenge broadcasts match.settled.
+  pending?: boolean
+  // The two clients reported different winners. The match is left unsettled and
+  // Challenge refunds both players on expiry — nobody is paid out on a conflict.
+  conflicted?: boolean
   state?: SettlementState
   error?: string
 }
@@ -258,14 +265,18 @@ export async function settleMatch(
     const data = (await res.json().catch(() => null)) as {
       error?: string
       alreadySettled?: boolean
+      pending?: boolean
+      conflicted?: boolean
       settlementState?: SettlementState
     } | null
 
     if (res.ok) {
-      debug('Challenge', 'Match settled', data)
+      debug('Challenge', 'Settle response', data)
       return {
         ok: true,
         alreadySettled: !!data?.alreadySettled,
+        pending: !!data?.pending,
+        conflicted: !!data?.conflicted,
         state: data?.settlementState,
       }
     }
