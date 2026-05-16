@@ -69,6 +69,17 @@ const CHALLENGE_SCRIPT_URL =
 
 const CHALLENGE_GAME_ID = import.meta.env.VITE_CHALLENGE_GAME_ID || ''
 
+// Dev-only sandbox mode. Passing a test API key (`sk_test_` prefix) to
+// Challenge.init() runs the widget in sandbox — $0 matches with bot accounts —
+// so localhost can be tested without real money. Gated on `import.meta.env.DEV`
+// AND the `sk_test_` prefix so a live key can never reach a production bundle:
+// in a prod build this resolves to '' and no apiKey is passed (widget runs live).
+// Set VITE_CHALLENGE_API_KEY in your local .env only — never on Vercel.
+const CHALLENGE_SANDBOX_KEY = (() => {
+  const k = import.meta.env.VITE_CHALLENGE_API_KEY
+  return import.meta.env.DEV && typeof k === 'string' && k.startsWith('sk_test_') ? k : ''
+})()
+
 // --- Shared state ---
 
 let _userData: ChallengeReadyData | null = null
@@ -169,8 +180,13 @@ export function initChallengeOnce(): Promise<void> {
     const challenge = window.Challenge
     if (!challenge) throw new Error('Challenge widget not available')
 
+    if (CHALLENGE_SANDBOX_KEY) {
+      debug('Challenge', 'Initializing in SANDBOX mode (dev — sk_test_ key)')
+    }
+
     challenge.init({
       gameId: CHALLENGE_GAME_ID,
+      ...(CHALLENGE_SANDBOX_KEY ? { apiKey: CHALLENGE_SANDBOX_KEY } : {}),
       entryFee: 2,
       mode: 'versus',
       matchmaking: 'skill',
