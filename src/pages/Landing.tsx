@@ -8,7 +8,10 @@ import { CPU_RIVALS } from '../lib/cpuRivals'
 import { useMatchStore } from '../stores/matchStore'
 import { initChallengeOnce, setNavigateToGame } from '../services/challengeWidget'
 
-const CHALLENGE_GATE_ENABLED = import.meta.env.PROD
+// TEMP: Challenge gate disabled so YC reviewers can use the live widget.
+// To re-enable the prod waitlist gate, restore the line below:
+// const CHALLENGE_GATE_ENABLED = import.meta.env.PROD
+const CHALLENGE_GATE_ENABLED = false
 import type { AIDifficulty } from '../game/ai/PuzzleAI'
 import type { Expression } from '../characters'
 
