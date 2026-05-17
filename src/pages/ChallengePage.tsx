@@ -21,7 +21,6 @@ import {
   setNavigateToGame,
   getChallengeMatchData,
   cleanupChallengeRetry,
-  settleMatch,
 } from '../services/challengeWidget'
 import { debug } from '../lib/debug'
 
@@ -41,7 +40,6 @@ export function ChallengePage() {
   const [error, setError] = useState<string | null>(null)
   const resultReportedRef = useRef(false)
   const [setupTimedOut, setSetupTimedOut] = useState(false)
-  const [settleStatus, setSettleStatus] = useState<'settling' | 'conflicted' | 'done'>('settling')
 
   // Canvas sizing (same as Vs.tsx)
   const [canvasWidth, setCanvasWidth] = useState<number | null>(null)
@@ -66,7 +64,6 @@ export function ChallengePage() {
             onMatchStarting: () => {
               resultReportedRef.current = false
               setSetupTimedOut(false)
-              setSettleStatus('settling')
               useGameStore.getState().reset()
               useMatchStore.getState().cleanup()
               setGameKey((k) => k + 1)
@@ -74,7 +71,6 @@ export function ChallengePage() {
             onNewOpponent: () => {
               resultReportedRef.current = false
               setSetupTimedOut(false)
-              setSettleStatus('settling')
               useGameStore.getState().reset()
               useMatchStore.getState().cleanup()
             },
@@ -90,12 +86,11 @@ export function ChallengePage() {
     }
   }, [navigate])
 
-  // Report result to Challenge when game ends (versus mode).
-  // Both clients POST to the matcha settle endpoint, which forwards to Challenge backend.
-  // The endpoint is idempotent: first caller settles, second gets alreadySettled with the
-  // same authoritative settlementState. Either way, we hand the state to the widget which
-  // renders it via Challenge.applySettlementState (idempotent — safe even if the WS
-  // match.settled event also fires).
+  // Report the result to Challenge when the game ends (versus consensus).
+  // Each client reports its own view of the winner with the player's own
+  // session — no server, no API key. Challenge settles once both clients
+  // agree, or voids + refunds on conflict/timeout. The widget renders the
+  // outcome itself from the match.settled / match.conflict WebSocket events.
   const isGameOver = useGameStore((s) => s.isGameOver)
   const matchResult = useMatchStore((s) => s.result)
 
@@ -108,45 +103,14 @@ export function ChallengePage() {
     if (!challenge || !matchData || !userData) return
 
     resultReportedRef.current = true
-    debug('Challenge', `Reporting result: ${matchResult}, matchId=${matchData.matchId}, userId=${userData.userId}, opponent=${matchData.opponent.email}`)
+    debug('Challenge', `Reporting result: ${matchResult}, matchId=${matchData.matchId}`)
 
-    const gameData = {
-      blocksCleared: useGameStore.getState().blocksCleared,
-      maxChain: useGameStore.getState().maxChain,
-      maxCombo: useGameStore.getState().maxCombo,
+    if (matchResult === 'draw') {
+      challenge.reportDraw({ matchId: matchData.matchId })
+    } else {
+      const winnerId = matchResult === 'win' ? userData.userId : matchData.opponent.id
+      challenge.reportResult({ matchId: matchData.matchId, winnerId })
     }
-
-    let claimedWinner: string | null
-    if (matchResult === 'win') claimedWinner = userData.userId
-    else if (matchResult === 'lose') claimedWinner = matchData.opponent.id
-    else claimedWinner = null
-
-    void (async () => {
-      const result = await settleMatch(matchData.matchId, claimedWinner, gameData)
-      if (!result.ok) {
-        console.error('[Challenge] Settlement failed; widget will fall back to its WS event + poll', result.error)
-        return
-      }
-      if (result.conflicted) {
-        // The two clients reported different winners. The match is left unsettled;
-        // Challenge refunds both players on expiry — nobody is paid out.
-        debug('Challenge', 'Settlement conflicted — match will be refunded on expiry')
-        setSettleStatus('conflicted')
-        return
-      }
-      if (result.pending) {
-        // Our report is recorded; the opponent's client reaches consensus and
-        // settles. Challenge then broadcasts match.settled, which the widget renders.
-        debug('Challenge', 'Settlement pending — awaiting opponent report')
-        return
-      }
-      setSettleStatus('done')
-      if (result.state) {
-        challenge.applySettlementState(result.state)
-      }
-      // If no state (older server response shape), the widget's WS event +
-      // settlement-state polling fallback will render the result.
-    })()
   }, [isGameOver, matchResult])
 
   // Setup timeout — if channel handshake doesn't complete in 20s, show error
@@ -252,7 +216,7 @@ export function ChallengePage() {
                 <div className="relative w-full h-full">
                   <CountdownOverlay />
                   <HypeOverlay />
-                  <ChallengeGameOverOverlay settleStatus={settleStatus} />
+                  <ChallengeGameOverOverlay />
                 </div>
               </div>
             </div>
@@ -304,7 +268,7 @@ export function ChallengePage() {
               <div className="relative w-full h-full">
                 <CountdownOverlay />
                 <HypeOverlay />
-                <ChallengeGameOverOverlay settleStatus={settleStatus} />
+                <ChallengeGameOverOverlay />
               </div>
             </div>
           </div>
@@ -316,7 +280,7 @@ export function ChallengePage() {
 
 // --- Challenge-specific game over overlay ---
 
-function ChallengeGameOverOverlay({ settleStatus }: { settleStatus: 'settling' | 'conflicted' | 'done' }) {
+function ChallengeGameOverOverlay() {
   const isGameOver = useGameStore((s) => s.isGameOver)
   const finalScore = useGameStore((s) => s.finalScore)
   const blocksCleared = useGameStore((s) => s.blocksCleared)
@@ -431,16 +395,6 @@ function ChallengeGameOverOverlay({ settleStatus }: { settleStatus: 'settling' |
             </div>
           </div>
         </div>
-
-        {settleStatus === 'conflicted' ? (
-          <p className="text-amber-300/80 text-xs mb-3">
-            Result couldn't be confirmed — your entry fee will be refunded.
-          </p>
-        ) : settleStatus === 'done' ? null : (
-          <p className="text-white/40 text-xs mb-3">
-            Challenge is settling the match...
-          </p>
-        )}
 
         <Button onClick={handleMenu} variant="ghost" size="lg">
           Back to Menu

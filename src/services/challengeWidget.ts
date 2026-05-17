@@ -51,6 +51,8 @@ interface ChallengeWidget {
   showDraw(data: { matchId: string; opponent: ChallengeOpponent }): void
   applySettlementState(state: SettlementState): void
   settle(data: { matchId: string; winnerId?: string; gameData?: Record<string, unknown> }): void
+  reportResult(data: { matchId: string; winnerId: string }): void
+  reportDraw(data: { matchId: string }): void
   setPostMatchHandlers(handlers: {
     onMatchStarting?: (data: { matchId: string }) => void
     onNewOpponent?: () => void
@@ -226,10 +228,13 @@ export function getChallenge(): ChallengeWidget | null {
   return window.Challenge ?? null
 }
 
-// --- Server-side settlement (versus mode) ---
-// Sends settle request to matcha's serverless function (api/challenge/settle.ts), which
-// authenticates the caller and forwards to Challenge backend with the server-only API key.
-// Pass winnerId=null (or omit) to settle as a draw.
+// --- Settlement ---
+// With consensus settlement each client reports the winner directly via
+// Challenge.reportResult() / reportDraw() — authenticated by the player's own
+// session, no API key, no server hop. The widget renders the outcome itself
+// (settling spinner, win/lose, or the voided/refunded screen) from the
+// match.settled / match.conflict WebSocket events. matcha no longer settles
+// through its own serverless function.
 
 export interface SettlementState {
   matchId: string
@@ -243,64 +248,4 @@ export interface SettlementState {
   platformFee: number
   refund: number
   settledAt: string
-}
-
-export interface SettleResult {
-  ok: boolean
-  alreadySettled?: boolean
-  // Our winner report was recorded but the opponent hasn't reported yet —
-  // settlement happens once both clients agree (consensus). No action needed:
-  // the opponent's call settles and Challenge broadcasts match.settled.
-  pending?: boolean
-  // The two clients reported different winners. The match is left unsettled and
-  // Challenge refunds both players on expiry — nobody is paid out on a conflict.
-  conflicted?: boolean
-  state?: SettlementState
-  error?: string
-}
-
-export async function settleMatch(
-  matchId: string,
-  winnerId: string | null,
-  gameData?: Record<string, unknown>
-): Promise<SettleResult> {
-  if (!_userData?.token) {
-    return { ok: false, error: 'Not authenticated' }
-  }
-
-  try {
-    debug('Challenge', 'Settling match via matcha server', { matchId, winnerId })
-    const res = await fetch('/api/challenge/settle', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${_userData.token}`,
-      },
-      body: JSON.stringify({ matchId, winnerId, gameData }),
-    })
-    const data = (await res.json().catch(() => null)) as {
-      error?: string
-      alreadySettled?: boolean
-      pending?: boolean
-      conflicted?: boolean
-      settlementState?: SettlementState
-    } | null
-
-    if (res.ok) {
-      debug('Challenge', 'Settle response', data)
-      return {
-        ok: true,
-        alreadySettled: !!data?.alreadySettled,
-        pending: !!data?.pending,
-        conflicted: !!data?.conflicted,
-        state: data?.settlementState,
-      }
-    }
-
-    console.error('[Challenge] Settlement failed:', res.status, data)
-    return { ok: false, error: data?.error || `HTTP ${res.status}` }
-  } catch (err) {
-    console.error('[Challenge] Settlement request failed:', err)
-    return { ok: false, error: err instanceof Error ? err.message : 'Network error' }
-  }
 }
