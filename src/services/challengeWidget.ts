@@ -29,6 +29,7 @@ export interface ChallengeConfig {
   entryFee?: number
   mode?: 'versus' | 'score'
   matchmaking?: 'skill' | 'fifo' | false
+  settlement?: 'server' | 'consensus'
   showButton?: boolean
   onReady?: (data: ChallengeReadyData) => void
   onMatchStart?: (data: ChallengeMatchData) => void
@@ -192,6 +193,7 @@ export function initChallengeOnce(): Promise<void> {
       entryFee: 2,
       mode: 'versus',
       matchmaking: 'skill',
+      settlement: 'consensus',
       showButton: false,
       onReady: (data) => {
         _userData = data
