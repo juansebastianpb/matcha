@@ -115,7 +115,7 @@ export function Landing() {
         <div className="max-w-3xl mx-auto text-center relative z-10">
           <h1 className="text-6xl md:text-8xl font-black mb-6">
             <span className="bg-gradient-to-r from-pink-300 via-amber-200 to-yellow-200 bg-clip-text text-transparent drop-shadow-lg">
-              Swingi
+              Swappi
             </span>
           </h1>
           <p className="text-xl md:text-2xl text-white/60 mb-10 max-w-lg mx-auto">
