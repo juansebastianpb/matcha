@@ -1,5 +1,5 @@
 /**
- * Generate a 1200×400 banner with all characters and the Swingi logo.
+ * Generate a 1200×400 banner with all characters and the Swappi logo.
  * Run: node scripts/generate-banner.mjs
  */
 import { Resvg } from '@resvg/resvg-js'
@@ -202,7 +202,7 @@ rightChars.forEach((char, i) => {
   </g>\n`
 })
 
-// Swingi logo — gradient text from pink-300 (#f9a8d4) via amber-200 (#fde68a) to yellow-200 (#fef08a)
+// Swappi logo — gradient text from pink-300 (#f9a8d4) via amber-200 (#fde68a) to yellow-200 (#fef08a)
 const logoSvg = `
   <defs>
     <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -219,7 +219,7 @@ const logoSvg = `
     font-weight="900"
     font-size="82"
     fill="url(#logoGrad)"
-  >Swingi</text>
+  >Swappi</text>
 `
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">

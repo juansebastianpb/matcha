@@ -59,7 +59,7 @@ Engine runs at its own tick rate (`ENGINE_FPS` = 15 in `constants.ts`), independ
 
 ### Challenge Integration (real-money matches)
 
-Matcha is registered as a Challenge game (Swingi). The integration uses **versus mode** with **platform matchmaking** (Path B in Challenge's docs).
+Matcha is registered as a Challenge game (Swappi). The integration uses **versus mode** with **platform matchmaking** (Path B in Challenge's docs).
 
 - **Settlement happens server-side** via `api/challenge/settle.ts` (Vercel serverless). The Challenge `sk_live_` API key is server-only — read from `process.env.CHALLENGE_API_KEY`. **Never** add `VITE_CHALLENGE_API_KEY` or pass `apiKey` to `Challenge.init()` — that would expose the live key in the client bundle.
 - After the game ends, both clients call `settleMatch(matchId, winnerId, gameData)` from `services/challengeWidget.ts`, which POSTs to `/api/challenge/settle` with the user's Challenge JWT (Authorization header).
